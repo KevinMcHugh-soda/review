@@ -10,7 +10,12 @@ public struct LoadedReview: Sendable {
     public let pullRequest: PullRequest
     /// Where the diff starts — GitHub's three-dot diff is merge base → head.
     public let mergeBase: String
+    /// The changed files, generated ones last — as GitHub orders them, and
+    /// as the file list and the all-files view show them.
     public let files: [FileDiff]
+    /// Paths marked `linguist-generated` in `.gitattributes` at head:
+    /// collapsed until clicked, like GitHub.
+    public let generatedPaths: Set<String>
     /// What merging would produce, when the base has moved since the PR
     /// branched; nil when it has not, and head *is* the after-merge state.
     public let merge: GitClient.MergeResult?
@@ -74,6 +79,72 @@ public struct LoadedReview: Sendable {
         }.value
     }
 
+    /// Every file in one document, under a header each — the continuous view.
+    ///
+    /// - Parameters:
+    ///   - expandedGaps: by file path.
+    ///   - collapsed: paths shown as their header only — viewed and generated
+    ///     files, as on GitHub, unless the reviewer opened one again.
+    ///   - viewed: paths marked viewed, for their headers.
+    /// Files are read and highlighted in parallel, eight at a time: each needs
+    /// two `git cat-file`s, and a large PR has hundreds.
+    public func allFilesDocument(
+        mode: CodeDocument.Mode,
+        expandedGaps: [String: Set<Int>] = [:],
+        collapsed: Set<String> = [],
+        viewed: Set<String> = []
+    ) async throws -> CodeDocument {
+        let documents = try await withThrowingTaskGroup(of: (Int, CodeDocument?).self) { group in
+            var results = [CodeDocument?](repeating: nil, count: files.count)
+            var next = 0
+            func addNext() {
+                guard next < files.count else { return }
+                let index = next
+                let file = files[index]
+                next += 1
+                group.addTask {
+                    guard !file.isBinary, !collapsed.contains(file.path) else { return (index, nil) }
+                    return (index, try await document(for: file, mode: mode == .file ? .file : mode, expandedGaps: expandedGaps[file.path] ?? []))
+                }
+            }
+            for _ in 0..<min(8, files.count) { addNext() }
+            while let (index, document) = try await group.next() {
+                results[index] = document
+                addNext()
+            }
+            return results
+        }
+        let items = files.enumerated().map { index, file in
+            (header: Self.header(
+                for: file, isCollapsed: collapsed.contains(file.path),
+                isGenerated: generatedPaths.contains(file.path), isViewed: viewed.contains(file.path)
+            ), document: documents[index])
+        }
+        return CodeDocument(combining: items)
+    }
+
+    /// `pkg/ledger/api.go · Modified · +12 −3`, with the state that explains
+    /// a header with nothing under it.
+    static func header(for file: FileDiff, isCollapsed: Bool, isGenerated: Bool = false, isViewed: Bool = false) -> String {
+        let status =
+            switch file.status {
+            case .added: "Added"
+            case .deleted: "Deleted"
+            case .renamed: "Renamed from \(file.oldPath ?? "")"
+            case .modified: "Modified"
+            }
+        var parts = [file.path, status]
+        if file.isBinary {
+            parts.append("binary")
+        } else {
+            parts.append("+\(file.additions) −\(file.deletions)")
+        }
+        if isGenerated { parts.append("generated") }
+        if isViewed { parts.append("viewed") }
+        if isCollapsed { parts.append("click to show") }
+        return parts.joined(separator: "  ·  ")
+    }
+
     /// Any file on disk, for a definition outside the PR's changes.
     public static func document(forFileAt url: URL) async throws -> CodeDocument {
         try await Task.detached(priority: .userInitiated) {
@@ -119,14 +190,18 @@ public struct ReviewLoader: Sendable {
         progress(.diffing)
         let mergeBase = try await git.mergeBase(pullRequest.base.sha, pullRequest.head.sha, in: repository)
         let patch = try await git.diff(from: mergeBase, to: pullRequest.head.sha, in: repository)
-        let files = try UnifiedDiffParser.parse(patch)
+        let parsed = try UnifiedDiffParser.parse(patch)
+        // Best effort: a repository without attributes, or a failure reading
+        // them, just means nothing is treated as generated.
+        let generated = (try? await git.generatedPaths(parsed.map(\.path), at: pullRequest.head.sha, in: repository)) ?? []
+        let files = parsed.filter { !generated.contains($0.path) } + parsed.filter { generated.contains($0.path) }
         // Only worth computing when the base has moved past the branch point.
         let merge = mergeBase == pullRequest.base.sha
             ? nil
             : try? await git.mergeTree(base: pullRequest.base.sha, head: pullRequest.head.sha, in: repository)
 
         return LoadedReview(
-            pullRequest: pullRequest, mergeBase: mergeBase, files: files, merge: merge,
+            pullRequest: pullRequest, mergeBase: mergeBase, files: files, generatedPaths: generated, merge: merge,
             repository: repository, git: git
         )
     }

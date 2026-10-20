@@ -17,8 +17,10 @@ final class CodeTextView: NSTextView {
     /// is in the text view's string.
     var onNavigate: ((NavigationAction, Int) -> Void)?
     var onAddComment: (() -> Void)?
-    /// Clicking a collapsed gap between hunks.
+    /// Clicking a collapsed gap between hunks, by row.
     var onExpandGap: ((Int) -> Void)?
+    /// Clicking a file's header in the all-files view, by row.
+    var onHeaderClick: ((Int) -> Void)?
     /// Asks what to show when the pointer rests on a symbol; nil for nothing.
     /// Nil itself on a pane that has no navigation (the base side of a split).
     var onHover: ((Int) async -> String?)?
@@ -128,7 +130,9 @@ final class CodeTextView: NSTextView {
 
     /// Scrolls a row to the middle of the view, selects the range and flashes
     /// it, so the eye finds where a jump landed.
-    func reveal(row: Int, column: Int, length: Int) {
+    /// `atTop` puts the row at the top of the view instead — for a file's
+    /// header, so the file being read is the one the header names.
+    func reveal(row: Int, column: Int, length: Int, atTop: Bool = false) {
         guard rowStarts.indices.contains(row) else { return }
         let rowLength = (rows[row].text as NSString).length
         let start = rowStarts[row] + min(column, rowLength)
@@ -145,7 +149,7 @@ final class CodeTextView: NSTextView {
             var rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer)
             rect.origin.y += textContainerOrigin.y
             let visible = enclosingScrollView?.contentView.bounds.height ?? rect.height
-            rect.origin.y -= (visible - rect.height) / 2
+            if !atTop { rect.origin.y -= (visible - rect.height) / 2 }
             rect.size.height = visible
             rect.origin.x = 0
             scrollToVisible(rect)
@@ -164,10 +168,19 @@ final class CodeTextView: NSTextView {
             onNavigate?(.definition, index)
             return
         }
-        // A click on a collapsed gap opens it.
-        if !rowStarts.isEmpty, let gap = rows[row(containing: index)].gap, rows[row(containing: index)].kind == .gap {
-            onExpandGap?(gap)
-            return
+        // A click on a collapsed gap opens it; on a file header, folds the file.
+        if !rowStarts.isEmpty {
+            let clicked = row(containing: index)
+            switch rows[clicked].kind {
+            case .gap:
+                onExpandGap?(clicked)
+                return
+            case .fileHeader:
+                onHeaderClick?(clicked)
+                return
+            case .context, .added, .removed, .hunkHeader, .filler:
+                break
+            }
         }
         super.mouseDown(with: event)
     }

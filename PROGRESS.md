@@ -289,6 +289,22 @@ titles render in a quieter colour than open PRs, which may want a look.
 **Tests: 100** (+1 opt-in live), including gap rows, expansion, the split
 layout, and added files.
 
+## All files in one scroll, and generated files
+
+- **Continuous view** (default on, ⌘4): every file under its header, the file
+  list following the scroll, picking a file scrolling to it, viewed and
+  generated files collapsed to their header. Rendered on sindresorhus/ky#881:
+  five files, headers, gaps; selecting `body.ts` scrolls its header to the top
+  and the list stays on it.
+- **Generated files** from `.gitattributes`, last and collapsed. Tested on a
+  fixture with `*.pb.go linguist-generated=true` and an explicit `=false`;
+  not seen on a real PR yet.
+- **Tests: 105.**
+
+**Not verified:** clicking a header to fold, a jump opening a gap in the
+continuous view, and viewed files collapsing — exercised by tests at the
+document level but not clicked in the app.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
@@ -418,3 +434,11 @@ caught it.
 
 **gopls separates a hover's signature and doc with `---`.** Rendered as text
 until MarkdownText learned horizontal rules.
+
+**A file picked while the PR loads is never scrolled to.** The window's own
+`.task` starts loading, so a selection made meanwhile finds no files to reveal,
+and when loading ends the selection is already set. Found by logging a scripted
+launch; the load now reveals an already-selected file.
+
+**Centring a file's header puts the previous file at the top.** With the
+file list following the top row, it jumped back. Headers reveal to the top.

@@ -18,15 +18,15 @@ extension ReviewSession {
 
     /// Rows in the current document with a current (not outdated) thread.
     var threadRows: [Int: String] {
-        guard let document, document.source == .pullRequest, let file = selectedFile, externalFile == nil else { return [:] }
+        guard let document, document.source == .pullRequest, externalFile == nil else { return [:] }
+        let current = threads.filter { !$0.isOutdated && $0.lines != nil }
+        guard !current.isEmpty else { return [:] }
         var rows: [Int: String] = [:]
-        for thread in threads where !thread.isOutdated {
-            guard let lines = thread.lines,
-                  (thread.side == .head ? file.newPath : file.oldPath) == thread.path
-            else { continue }
-            for (index, row) in document.rows.enumerated() {
+        for (index, row) in document.rows.enumerated() where row.isCode && document.isNavigable(atRow: index) {
+            guard let file = file(atRow: index) else { continue }
+            for thread in current where (thread.side == .head ? file.newPath : file.oldPath) == thread.path {
                 let line = thread.side == .head ? row.newLine : (row.kind == .added ? nil : row.oldLine)
-                if let line, lines.contains(line) { rows[index] = thread.id }
+                if let line, thread.lines?.contains(line) == true { rows[index] = thread.id }
             }
         }
         return rows
@@ -108,7 +108,7 @@ extension ReviewSession {
                 rows.indices.contains(index + 1) ? index + 1 : nil
             case .added, .removed:
                 mode == .file && (index == 0 || rows[index - 1].kind == .context) ? index : nil
-            case .context, .gap, .filler:
+            case .context, .gap, .filler, .fileHeader:
                 nil
             }
         }

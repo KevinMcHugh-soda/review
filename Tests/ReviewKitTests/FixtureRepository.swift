@@ -93,6 +93,10 @@ struct FixtureRepository {
         try fixture.write("café.go", "package widgets\n// accented, edited\n")
         try await fixture.git("rm", "--quiet", "gone.ts")
         try fixture.write("new.ts", "export const added = 2\nexport const more = 3\n")
+        // A generated file, as GitHub decides it: by `.gitattributes`.
+        try fixture.write(".gitattributes", "*.pb.go linguist-generated=true\nnot-generated.go linguist-generated=false\n")
+        try fixture.write("api.pb.go", "package widgets\n// Code generated. DO NOT EDIT.\n")
+        try fixture.write("not-generated.go", "package widgets\n")
         // On disk, not `update-index --chmod`: `add -A` below re-reads the
         // mode from the working tree and would undo it.
         try fixture.makeExecutable("run.sh")

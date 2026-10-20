@@ -9,7 +9,10 @@ struct CodeViewActions {
     let onAddComment: () -> Void
     let onSelectDraft: (UUID) -> Void
     let onSelectThread: (String) -> Void
+    /// Both by row: the session finds the file and gap from it.
     let onExpandGap: (Int) -> Void
+    let onHeaderClick: (Int) -> Void
+    let onTopRowChange: (Int) -> Void
     let onHover: (Cursor) async -> String?
 }
 
@@ -55,6 +58,8 @@ extension CodePane {
         }
         textView.onAddComment = actions.onAddComment
         textView.onExpandGap = actions.onExpandGap
+        textView.onHeaderClick = actions.onHeaderClick
+        onTopRowChange = actions.onTopRowChange
         textView.onHover = { [weak textView] index in
             guard let cursor = textView?.cursor(at: index) else { return nil }
             return await actions.onHover(cursor)

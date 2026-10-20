@@ -167,7 +167,7 @@ private struct GoFixture {
         let patch = try await git.diff(from: mergeBase, to: pullRequest.head.sha, in: repository)
         let merge = mergeBase == base ? nil : try await git.mergeTree(base: base, head: pullRequest.head.sha, in: repository)
         return LoadedReview(
-            pullRequest: pullRequest, mergeBase: mergeBase, files: try UnifiedDiffParser.parse(patch),
+            pullRequest: pullRequest, mergeBase: mergeBase, files: try UnifiedDiffParser.parse(patch), generatedPaths: [],
             merge: merge, repository: repository, git: git
         )
     }

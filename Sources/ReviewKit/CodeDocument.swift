@@ -19,6 +19,9 @@ public struct CodeDocument: Sendable {
             /// The empty side of a split row: an added line has nothing on the
             /// left, a removed one nothing on the right.
             case filler
+            /// The heading above each file when every file is shown in one
+            /// scroll.
+            case fileHeader
         }
 
         public let kind: Kind
@@ -29,21 +32,38 @@ public struct CodeDocument: Sendable {
         /// For a `.gap` row, which gap it is: 0 before the first hunk, `n`
         /// after the last of `n` hunks.
         public let gap: Int?
+        /// For a `.gap` row, the head lines it stands for.
+        public let gapLines: ClosedRange<Int>?
+        /// Which of the PR's files the row belongs to, by index into
+        /// `LoadedReview.files`. Set in the all-files document; nil in a
+        /// single file's, where every row is the selected file's.
+        public let file: Int?
 
-        init(kind: Kind, text: String, oldLine: Int?, newLine: Int?, spans: [HighlightSpan], gap: Int? = nil) {
+        init(
+            kind: Kind, text: String, oldLine: Int?, newLine: Int?, spans: [HighlightSpan],
+            gap: Int? = nil, gapLines: ClosedRange<Int>? = nil, file: Int? = nil
+        ) {
             self.kind = kind
             self.text = text
             self.oldLine = oldLine
             self.newLine = newLine
             self.spans = spans
             self.gap = gap
+            self.gapLines = gapLines
+            self.file = file
+        }
+
+        /// The same row, as part of file `index` in the all-files document.
+        func inFile(_ index: Int) -> Row {
+            Row(kind: kind, text: text, oldLine: oldLine, newLine: newLine, spans: spans,
+                gap: gap, gapLines: gapLines, file: index)
         }
 
         /// A row that stands for code: not a header, gap or filler.
         public var isCode: Bool {
             switch kind {
             case .context, .added, .removed: true
-            case .hunkHeader, .gap, .filler: false
+            case .hunkHeader, .gap, .filler, .fileHeader: false
             }
         }
     }
@@ -80,6 +100,17 @@ public struct CodeDocument: Sendable {
     public private(set) var source: Source = .pullRequest
 
     public var isNavigable: Bool { source != .afterMerge }
+    /// In the all-files document, the files showing after-merge text, whose
+    /// line numbers do not match the head checkout.
+    public private(set) var afterMergeFiles: Set<Int> = []
+
+    /// Whether a row's line numbers are the PR head's, so navigation and
+    /// comments can use them.
+    public func isNavigable(atRow row: Int) -> Bool {
+        guard isNavigable else { return false }
+        guard let file = file(atRow: row) else { return true }
+        return !afterMergeFiles.contains(file)
+    }
 
     /// The widest line number in either column, for sizing the gutter.
     public var maxLineNumber: Int {
@@ -138,9 +169,50 @@ public struct CodeDocument: Sendable {
         return copy
     }
 
-    /// The row showing a 1-based line at head (or in a plain file).
-    public func row(forNewLine line: Int) -> Int? {
-        rows.firstIndex { $0.newLine == line }
+    /// The row showing a 1-based line at head (or in a plain file). In the
+    /// all-files document, `file` says whose line.
+    public func row(forNewLine line: Int, file: Int? = nil) -> Int? {
+        rows.firstIndex { $0.newLine == line && (file == nil || $0.file == file) }
+    }
+
+    /// The header row of a file in the all-files document.
+    public func headerRow(forFile file: Int) -> Int? {
+        rows.firstIndex { $0.kind == .fileHeader && $0.file == file }
+    }
+
+    /// The collapsed gap that holds a head line, so a jump there can open it.
+    public func gapRow(containing line: Int, file: Int? = nil) -> Int? {
+        rows.firstIndex { $0.kind == .gap && $0.gapLines?.contains(line) == true && (file == nil || $0.file == file) }
+    }
+
+    /// The file a row belongs to: its own in the all-files document, found by
+    /// walking up to the nearest row that knows.
+    public func file(atRow row: Int) -> Int? {
+        guard rows.indices.contains(row) else { return nil }
+        return rows[row].file
+    }
+
+    /// Every file one after another, each under its header — GitHub's "Files
+    /// changed" page. `documents[i]` is file `i`'s own document, or nil for a
+    /// file shown only as its header (viewed and collapsed, or binary).
+    public init(combining documents: [(header: String, document: CodeDocument?)]) {
+        isBinary = false
+        let isSplit = documents.contains { $0.document?.leftRows != nil }
+        var rows: [Row] = []
+        var left: [Row] = []
+        for (index, item) in documents.enumerated() {
+            let header = Row(kind: .fileHeader, text: item.header, oldLine: nil, newLine: nil, spans: [], file: index)
+            rows.append(header)
+            if isSplit { left.append(header) }
+            guard let document = item.document else { continue }
+            rows += document.rows.map { $0.inFile(index) }
+            if isSplit {
+                left += (document.leftRows ?? document.rows).map { $0.inFile(index) }
+            }
+        }
+        self.rows = rows
+        leftRows = isSplit ? left : nil
+        afterMergeFiles = Set(documents.indices.filter { documents[$0].document?.source == .afterMerge })
     }
 
     static func diffRows(
@@ -210,7 +282,7 @@ public struct CodeDocument: Sendable {
             let count = lines.count
             return [Row(
                 kind: .gap, text: "⋯ \(count) unchanged \(count == 1 ? "line" : "lines")",
-                oldLine: nil, newLine: nil, spans: [], gap: gap.index
+                oldLine: nil, newLine: nil, spans: [], gap: gap.index, gapLines: lines
             )]
         }
         return lines.compactMap { number in

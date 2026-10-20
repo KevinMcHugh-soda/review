@@ -32,6 +32,8 @@ struct LaunchOptions {
     let filePath: String?
     let mode: CodeDocument.Mode?
     let expandedGaps: [Int]
+    /// `--continuous on|off`: every file in one scroll, or one at a time.
+    let continuous: Bool?
     let navigation: (action: NavigationAction, line: Int, column: Int)?
     let comment: (lines: ClosedRange<Int>, note: String, ask: Bool)?
     let opensPostSheet: Bool
@@ -50,6 +52,7 @@ struct LaunchOptions {
         pullRequest = value(after: "--open")
         filePath = value(after: "--file")
         mode = value(after: "--mode").flatMap(CodeDocument.Mode.init(rawValue:))
+        continuous = value(after: "--continuous").map { $0 == "on" }
         expandedGaps = arguments.indices.filter { arguments[$0] == "--expand" && arguments.indices.contains($0 + 1) }
             .compactMap { Int(arguments[$0 + 1]) }
         if let action = value(after: "--navigate").flatMap(NavigationAction.init(rawValue:)),

@@ -73,6 +73,7 @@ struct SplitCodeView: NSViewRepresentable {
         let coordinator = context.coordinator
         coordinator.right.configureInteractive(actions)
         coordinator.left.textView.onExpandGap = actions.onExpandGap
+        coordinator.left.textView.onHeaderClick = actions.onHeaderClick
 
         let leftRows = document.leftRows ?? []
         coordinator.left.show(leftRows, id: "left:\(documentID)", scrollKey: "left:\(scrollKey)")

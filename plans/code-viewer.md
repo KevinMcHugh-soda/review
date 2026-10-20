@@ -57,6 +57,40 @@ The diff is the default. ⌘1 Diff, ⌘2 Split, ⌘3 File.
 - **After merge** — the whole file (see checkout-and-diff.md), with changed
   lines marked in the gutter.
 
+### All files in one scroll
+
+The default, as on GitHub's "Files changed" page: every file one after
+another, each under a header row (`path · Modified · +12 −3`). ⌘4 or the
+toolbar's All Files button switches to one file at a time. Works in Diff,
+Split and File modes.
+
+- **One document.** `LoadedReview.allFilesDocument` builds each file's
+  document (eight at a time — each needs two `git cat-file`s) and
+  `CodeDocument(combining:)` joins them; every row carries its file's index.
+  Everything that used to ask "the selected file" asks the row instead:
+  navigation, drafts, gutter marks, gaps, hover.
+- **The file list follows the scroll.** The pane reports the row just below
+  the top edge; its file becomes the selection. Picking a file scrolls its
+  header to the top (not the middle — centred, the previous file's tail sat at
+  the top and the list jumped back to it). ⌥⌘↓/↑ go file to file.
+- **Collapsed files.** Viewed files and generated files show as their
+  header only ("… · viewed · click to show"); clicking a header folds or
+  unfolds that file.
+- **Jumps into hidden code** open what hides it — the file's fold, then the
+  gap holding the line — instead of leaving the view.
+- File mode across all files may mix head and after-merge text; the
+  document records which files are after-merge, and navigation and comments
+  are off on those rows only.
+
+### Generated files
+
+Files marked `linguist-generated` (set or `true`) in `.gitattributes` at the
+PR's head — GitHub's rule — go to the end of the file list and the scroll,
+tagged "generated", collapsed until clicked. Found with
+`git check-attr --cached` against a throwaway index read from head's tree:
+the clone is bare, and Apple's git 2.39 predates `check-attr --source`.
+`-diff` and `binary` attributes are not treated as generated.
+
 ### Gaps between hunks
 
 The unchanged runs a diff leaves out show as one row, "⋯ 67 unchanged

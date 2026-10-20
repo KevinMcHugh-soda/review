@@ -59,6 +59,12 @@ struct CodeDetail: View {
                 .disabled(session.selectedFile == nil)
             }
             ToolbarItem(placement: .primaryAction) {
+                Toggle(isOn: $session.isContinuous) {
+                    Label("All Files", systemImage: "rectangle.stack")
+                }
+                .help("Every file in one scroll, or one at a time (⌘4)")
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Toggle(isOn: $session.isInspectorShown) {
                     Label("Drafts", systemImage: "text.bubble")
                 }
@@ -141,7 +147,9 @@ struct CodeDetail: View {
                 session.selectedThreadID = id
                 session.isInspectorShown = true
             },
-            onExpandGap: { session.expandGap($0) },
+            onExpandGap: { session.expandGap(atRow: $0) },
+            onHeaderClick: { session.toggleFile(atRow: $0) },
+            onTopRowChange: { session.didScroll(toRow: $0) },
             onHover: { await session.hover(at: $0) }
         )
     }

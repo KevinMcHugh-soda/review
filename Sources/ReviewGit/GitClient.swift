@@ -21,6 +21,8 @@ public struct GitClient: Sendable {
     /// `gh` is already required and signed in, and the managed clones are
     /// blobless, so even `cat-file` can need to fetch.
     let credentialHelper: [String]
+    /// Set for one call, e.g. `GIT_INDEX_FILE`.
+    var extraEnvironment: [String: String] = [:]
 
     public init(git: URL, gh: URL?, environment: [String: String]) {
         self.git = git
@@ -41,13 +43,17 @@ public struct GitClient: Sendable {
     public func run(
         _ arguments: [String],
         in repository: URL? = nil,
+        input: Data? = nil,
         timeout: Duration = .seconds(600)
     ) async throws -> ProcessOutput {
         var full = credentialHelper
         full += ["-c", "core.quotePath=false"]
         if let repository { full += ["-C", repository.path] }
         full += arguments
-        let output = try await Subprocess.run(git, full, environment: environment, timeout: timeout)
+        let output = try await Subprocess.run(
+            git, full, environment: environment.merging(extraEnvironment) { _, extra in extra },
+            input: input, timeout: timeout
+        )
         guard output.succeeded else {
             throw GitError(arguments: arguments, status: output.status, stderr: output.stderrText)
         }
@@ -108,6 +114,31 @@ public struct GitClient: Sendable {
         } catch let error as GitError where error.stderr.contains("does not exist") || error.stderr.contains("Not a valid object name") {
             return nil
         }
+    }
+
+    /// The paths marked generated at a commit — `linguist-generated` set or
+    /// `true` in a `.gitattributes`, which is what GitHub collapses.
+    ///
+    /// The clone is bare and git 2.39 has no `check-attr --source`, so the
+    /// commit's tree is read into a throwaway index and `check-attr --cached`
+    /// takes the attributes from there. No checkout, no working tree.
+    public func generatedPaths(_ paths: [String], at commit: String, in repository: URL) async throws -> Set<String> {
+        guard !paths.isEmpty else { return [] }
+        let index = FileManager.default.temporaryDirectory.appendingPathComponent("review-attr-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: index) }
+        var scoped = self
+        scoped.extraEnvironment["GIT_INDEX_FILE"] = index.path
+        try await scoped.run(["read-tree", commit], in: repository)
+        let output = try await scoped.run(
+            ["check-attr", "--cached", "-z", "--stdin", "linguist-generated"],
+            in: repository,
+            input: Data(paths.joined(separator: "\0").utf8)
+        )
+        // -z output: path NUL attribute NUL value NUL, repeated.
+        let fields = output.stdout.split(separator: 0, omittingEmptySubsequences: false).map { String(decoding: $0, as: UTF8.self) }
+        return Set(stride(from: 0, to: fields.count - 2, by: 3).compactMap { offset in
+            ["set", "true"].contains(fields[offset + 2]) ? fields[offset] : nil
+        })
     }
 
     public func hasCommit(_ sha: String, in repository: URL) async -> Bool {

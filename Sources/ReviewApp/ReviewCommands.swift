@@ -30,6 +30,11 @@ struct ReviewCommands: Commands {
             Button("Show Whole File") { session?.mode = .file }
                 .keyboardShortcut("3", modifiers: .command)
                 .disabled(session?.selectedFile == nil)
+            Button(session?.isContinuous == true ? "Show One File at a Time" : "Show All Files in One Scroll") {
+                session?.isContinuous.toggle()
+            }
+            .keyboardShortcut("4", modifiers: .command)
+            .disabled(session?.review == nil)
             Divider()
             Button("Next Change") { session?.revealChange(offset: 1) }
                 .keyboardShortcut(.downArrow, modifiers: [.control, .command])

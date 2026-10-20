@@ -42,12 +42,29 @@ final class ReviewSession {
     /// file that navigation had opened.
     var selectedFilePath: String? {
         didSet {
-            if selectedFilePath != nil, selectedFilePath != oldValue { externalFile = nil }
+            guard selectedFilePath != oldValue else { return }
+            if selectedFilePath != nil { externalFile = nil }
+            // In the all-files view, picking a file scrolls to it — unless the
+            // pick came from the scroll itself.
+            if isContinuous, !isFollowingScroll, let path = selectedFilePath, let index = files.firstIndex(where: { $0.path == path }) {
+                pendingReveal = Reveal(headerOf: index)
+            }
         }
     }
     /// A file outside the PR's changes, shown because navigation landed in it.
     var externalFile: URL?
     var mode: CodeDocument.Mode = .diff
+    /// Every file in one scroll, GitHub-style, rather than one at a time.
+    var isContinuous = UserDefaults.standard.object(forKey: ReviewSession.continuousKey) as? Bool ?? true {
+        didSet { UserDefaults.standard.set(isContinuous, forKey: Self.continuousKey) }
+    }
+    static let continuousKey = "showAllFilesInOneScroll"
+    /// Files whose header the reviewer clicked, flipping them from collapsed
+    /// (viewed or generated) to open, or open to collapsed.
+    var toggledFiles: Set<String> = []
+    /// Set while the file list is following the scroll, so that selecting the
+    /// file being read does not scroll to it.
+    var isFollowingScroll = false
     /// Gaps between hunks the reviewer has opened up, by file.
     var expandedGaps: [String: Set<Int>] = [:]
 
@@ -123,8 +140,21 @@ final class ReviewSession {
         guard review != nil else { return nil }
         if let externalFile { return "external:\(externalFile.path)" }
         guard let scrollKey else { return nil }
+        if isContinuous {
+            let gaps = expandedGaps.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.sorted())" }.joined(separator: ";")
+            return "\(scrollKey):\(gaps):\(collapsedPaths.sorted().joined(separator: ","))"
+        }
         let gaps = mode == .file ? "" : (expandedGaps[selectedFilePath ?? ""] ?? []).sorted().map(String.init).joined(separator: ",")
         return "\(scrollKey):\(gaps)"
+    }
+
+    /// Shown as their header only in the all-files view: viewed and generated
+    /// files, as on GitHub — flipped for any whose header was clicked.
+    var collapsedPaths: Set<String> {
+        guard let review else { return [] }
+        let byDefault = Set(files.filter { notes.isViewed($0, headSHA: review.pullRequest.head.sha) }.map(\.path))
+            .union(review.generatedPaths)
+        return byDefault.symmetricDifference(toggledFiles)
     }
 
     /// The file and mode being shown, without the expanded gaps: while it
@@ -132,13 +162,44 @@ final class ReviewSession {
     var scrollKey: String? {
         guard let review else { return nil }
         if let externalFile { return "external:\(externalFile.path)" }
+        if isContinuous { return "all:\(review.pullRequest.head.sha):\(mode.rawValue)" }
         guard let selectedFilePath else { return nil }
         return "\(review.pullRequest.head.sha):\(selectedFilePath):\(mode.rawValue)"
     }
 
-    func expandGap(_ gap: Int) {
-        guard let path = selectedFilePath else { return }
+    /// The PR file a row of the current document belongs to: the row's own in
+    /// the all-files view, else the selected file.
+    func file(atRow row: Int) -> FileDiff? {
+        if externalFile != nil { return nil }
+        if let index = document?.file(atRow: row) { return files.indices.contains(index) ? files[index] : nil }
+        return selectedFile
+    }
+
+    /// The index into `files` the all-files view uses for the selected file.
+    var selectedFileIndex: Int? {
+        guard isContinuous else { return nil }
+        return files.firstIndex { $0.path == selectedFilePath }
+    }
+
+    func expandGap(atRow row: Int) {
+        guard let document, document.rows.indices.contains(row), let gap = document.rows[row].gap,
+              let path = file(atRow: row)?.path
+        else { return }
         expandedGaps[path, default: []].insert(gap)
+    }
+
+    /// Clicking a file's header folds or unfolds it.
+    func toggleFile(atRow row: Int) {
+        guard let path = file(atRow: row)?.path else { return }
+        if toggledFiles.contains(path) { toggledFiles.remove(path) } else { toggledFiles.insert(path) }
+    }
+
+    /// The file list follows whichever file is at the top of the scroll.
+    func didScroll(toRow row: Int) {
+        guard isContinuous, let path = file(atRow: row)?.path, path != selectedFilePath else { return }
+        isFollowingScroll = true
+        selectedFilePath = path
+        isFollowingScroll = false
     }
 
     func load(with loader: ReviewLoader, services: AppServices) async {
@@ -157,6 +218,10 @@ final class ReviewSession {
             phase = .loaded(review)
             if selectedFilePath == nil || selectedFile == nil {
                 selectedFilePath = review.files.first?.path
+            } else if isContinuous, let index = review.files.firstIndex(where: { $0.path == selectedFilePath }) {
+                // A file picked while the PR was loading: scroll to it now
+                // that there is somewhere to scroll.
+                pendingReveal = Reveal(headerOf: index)
             }
             Task { await loadThreads() }
             await prepareNavigation(review, checkouts: loader.checkouts, environment: environment)
@@ -190,6 +255,12 @@ final class ReviewSession {
         do {
             let document =
                 if let externalFile { try await LoadedReview.document(forFileAt: externalFile) }
+                else if isContinuous {
+                    try await review.allFilesDocument(
+                        mode: mode, expandedGaps: expandedGaps, collapsed: collapsedPaths,
+                        viewed: Set(files.filter { isViewed($0) }.map(\.path))
+                    )
+                }
                 else if let file = selectedFile {
                     try await review.document(for: file, mode: mode, expandedGaps: expandedGaps[file.path] ?? [])
                 }

@@ -24,6 +24,9 @@ struct Show: AsyncParsableCommand {
     @Flag(help: "Print each row's highlight spans.")
     var spans = false
 
+    @Flag(help: "Print every file in one document, as the all-files view shows it.")
+    var all = false
+
     func run() async throws {
         let reference = try PullRequestReference(parsing: pullRequest)
         let services = await AppServices.start()
@@ -37,6 +40,11 @@ struct Show: AsyncParsableCommand {
         }
         let elapsed = ContinuousClock.now - started
 
+        if all {
+            let document = try await review.allFilesDocument(mode: file ? .file : .diff, collapsed: review.generatedPaths)
+            printDocument(document)
+            return
+        }
         guard let path else {
             printSummary(review, elapsed: elapsed)
             return
@@ -64,7 +72,8 @@ struct Show: AsyncParsableCommand {
                 }
             let counts = file.isBinary ? "binary" : "+\(file.additions) −\(file.deletions)"
             let name = file.status == .renamed ? "\(file.oldPath ?? "") → \(file.path)" : file.path
-            print("\(status)  \(counts.padding(toLength: 12, withPad: " ", startingAt: 0)) \(name)")
+            let generated = review.generatedPaths.contains(file.path) ? "  (generated)" : ""
+            print("\(status)  \(counts.padding(toLength: 12, withPad: " ", startingAt: 0)) \(name)\(generated)")
         }
     }
 
@@ -85,6 +94,7 @@ struct Show: AsyncParsableCommand {
                 case .removed: "-"
                 case .gap: "⋯"
                 case .filler: "."
+                case .fileHeader: "#"
                 }
             print("\(old.leftPad(width)) \(new.leftPad(width)) \(mark) \(row.text)")
             if spans, !row.spans.isEmpty {

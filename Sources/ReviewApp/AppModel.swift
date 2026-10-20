@@ -55,10 +55,11 @@ final class AppModel {
             return
         }
         if let mode = options.mode { selected.mode = mode }
+        if let continuous = options.continuous { selected.isContinuous = continuous }
         if !selected.hasStarted { await load(selected) }
         if let filePath = options.filePath {
             selected.selectedFilePath = filePath
-            for gap in options.expandedGaps { selected.expandGap(gap) }
+            for gap in options.expandedGaps { selected.expandedGaps[filePath, default: []].insert(gap) }
         }
         if let navigation = options.navigation {
             await selected.performWhenReady(navigation.action, line: navigation.line, column: navigation.column)
@@ -69,7 +70,7 @@ final class AppModel {
         if options.opensPostSheet { selected.isPostSheetShown = true }
         if let hover = options.hover {
             await selected.performWhenReady(.definition, line: 0, column: 0, onlyWait: true)
-            if let row = selected.document?.row(forNewLine: hover.line),
+            if let row = selected.document?.row(forNewLine: hover.line, file: selected.selectedFileIndex),
                let textView = Self.codeTextView(in: NSApp.windows.first?.contentView)
             {
                 await textView.triggerHover(at: textView.rowStarts[row] + hover.column)

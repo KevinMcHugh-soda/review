@@ -5,6 +5,7 @@ import SwiftUI
 /// and its line counts.
 struct FileRow: View {
     let file: FileDiff
+    var isGenerated = false
     @Binding var isViewed: Bool
 
     var body: some View {
@@ -26,6 +27,10 @@ struct FileRow: View {
                 }
             }
             Spacer(minLength: Theme.tightSpacing)
+            if isGenerated {
+                StateTag(text: "generated")
+                    .help("Marked linguist-generated in .gitattributes; collapsed in the all-files view")
+            }
             FileCounts(file: file)
             Toggle("Viewed", isOn: $isViewed)
                 .toggleStyle(.checkbox)

@@ -69,8 +69,10 @@ extension ReviewSession {
     /// Why Add Comment cannot act on the current selection, or nil if it can.
     var addCommentProblem: String? {
         guard let document else { return "Open a file first." }
-        if document.source == .afterMerge { return "Comment in Diff view (⌘1): after-merge line numbers are not the PR's." }
         guard let rows = selectedRows ?? cursor.map({ $0.row...$0.row }) else { return "Select the lines to comment on." }
+        if !document.isNavigable(atRow: rows.lowerBound) {
+            return "Comment in Diff view (⌘1): after-merge line numbers are not the PR's."
+        }
         if rows.allSatisfy({ !document.rows.indices.contains($0) || !document.rows[$0].isCode }) {
             return "Select lines of code."
         }
@@ -85,7 +87,12 @@ extension ReviewSession {
             return
         }
         guard let document, let review, let rows = selectedRows ?? cursor.map({ $0.row...$0.row }) else { return }
-        let selected = rows.filter { document.rows.indices.contains($0) }.map { document.rows[$0] }.filter(\.isCode)
+        // A selection that runs across a file boundary comments on the file
+        // it starts in.
+        guard let firstCode = rows.first(where: { document.rows.indices.contains($0) && document.rows[$0].isCode }) else { return }
+        let owner = document.rows[firstCode].file
+        let selected = rows.filter { document.rows.indices.contains($0) }.map { document.rows[$0] }
+            .filter { $0.isCode && $0.file == owner }
         let headLines = selected.compactMap(\.newLine)
         let side: Side = headLines.isEmpty ? .base : .head
         let lines = side == .head ? headLines : selected.compactMap(\.oldLine)
@@ -97,7 +104,7 @@ extension ReviewSession {
         if let externalFile {
             path = displayPath(for: externalFile)
             isInPullRequest = false
-        } else if let file = selectedFile, let name = side == .head ? file.newPath : file.oldPath {
+        } else if let file = file(atRow: firstCode), let name = side == .head ? file.newPath : file.oldPath {
             path = name
             isInPullRequest = true
         } else {
@@ -118,15 +125,20 @@ extension ReviewSession {
     /// Rows in the current document that a draft covers, and which draft.
     var draftRows: [Int: UUID] {
         guard let document else { return [:] }
+        let external = externalFile.map(displayPath(for:))
         var rows: [Int: UUID] = [:]
-        for draft in notes.drafts {
-            let anchor = draft.anchor
-            let matchesFile: Bool =
-                if let externalFile { displayPath(for: externalFile) == anchor.path && anchor.side == .head }
-                else if let file = selectedFile { (anchor.side == .head ? file.newPath : file.oldPath) == anchor.path }
-                else { false }
-            guard matchesFile, document.source != .afterMerge || anchor.side == .base else { continue }
-            for (index, row) in document.rows.enumerated() {
+        // Each row's file decides which drafts can land on it: one file's in a
+        // single-file view, any file's in the all-files view.
+        var fileCache: [Int?: FileDiff?] = [:]
+        for (index, row) in document.rows.enumerated() where row.isCode {
+            let file = fileCache[row.file] ?? { let found = self.file(atRow: index); fileCache[row.file] = found; return found }()
+            for draft in notes.drafts {
+                let anchor = draft.anchor
+                let matchesFile =
+                    if let external { external == anchor.path && anchor.side == .head }
+                    else if let file { (anchor.side == .head ? file.newPath : file.oldPath) == anchor.path }
+                    else { false }
+                guard matchesFile, document.isNavigable(atRow: index) || anchor.side == .base else { continue }
                 let line = anchor.side == .head ? row.newLine : (row.kind == .added ? nil : row.oldLine)
                 if let line, anchor.lines.contains(line) { rows[index] = draft.id }
             }
@@ -159,11 +171,12 @@ extension ReviewSession {
     /// and optionally asks Claude and waits for the answer.
     func scriptedComment(lines: ClosedRange<Int>, note: String, ask shouldAsk: Bool) async {
         let deadline = ContinuousClock.now + .seconds(60)
-        while ContinuousClock.now < deadline, document?.row(forNewLine: lines.lowerBound) == nil || worktree == nil {
+        while ContinuousClock.now < deadline,
+              document?.row(forNewLine: lines.lowerBound, file: selectedFileIndex) == nil || worktree == nil {
             try? await Task.sleep(for: .milliseconds(200))
         }
-        guard let document, let first = document.row(forNewLine: lines.lowerBound),
-              let last = document.row(forNewLine: lines.upperBound)
+        guard let document, let first = document.row(forNewLine: lines.lowerBound, file: selectedFileIndex),
+              let last = document.row(forNewLine: lines.upperBound, file: selectedFileIndex)
         else { return }
         selectedRows = first...last
         addDraft()

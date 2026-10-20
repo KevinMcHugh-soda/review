@@ -23,6 +23,12 @@ enum CodeAttributedText {
         result.beginEditing()
         for row in rows {
             let rowLength = (row.text as NSString).length
+            if row.kind == .fileHeader {
+                result.addAttributes(
+                    [.font: Theme.Code.fileHeaderFont, .foregroundColor: Theme.Code.fileHeaderText],
+                    range: NSRange(location: offset, length: rowLength)
+                )
+            }
             if row.kind == .hunkHeader || row.kind == .gap {
                 result.addAttribute(
                     .foregroundColor, value: Theme.Code.hunkHeaderText,

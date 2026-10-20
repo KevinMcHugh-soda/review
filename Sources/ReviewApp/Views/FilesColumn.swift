@@ -28,7 +28,7 @@ struct FilesColumn: View {
             }
         case .loaded(let review):
             List(review.files, selection: $session.selectedFilePath) { file in
-                FileRow(file: file, isViewed: Binding(
+                FileRow(file: file, isGenerated: review.generatedPaths.contains(file.path), isViewed: Binding(
                     get: { session.isViewed(file) },
                     set: { session.setViewed($0, file) }
                 ))

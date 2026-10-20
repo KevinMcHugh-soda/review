@@ -93,7 +93,7 @@ final class LineNumberGutter: NSRulerView {
                 switch item.kind {
                 case .added: "+"
                 case .removed: "−"
-                case .context, .hunkHeader, .gap, .filler: ""
+                case .context, .hunkHeader, .gap, .filler, .fileHeader: ""
                 }
             (mark as NSString).draw(
                 at: NSPoint(x: markLeft, y: top),

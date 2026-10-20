@@ -18,13 +18,19 @@ struct Reveal: Equatable {
     /// since a hunk of only removed lines has no head line to aim at.
     let line: Int?
     let row: Int?
+    /// In the all-files view: whose line, by index into the PR's files.
+    let file: Int?
+    /// In the all-files view: scroll to this file's header.
+    let header: Int?
     let column: Int
     let length: Int
     let id = UUID()
 
-    init(line: Int, column: Int, length: Int) {
+    init(line: Int, column: Int, length: Int, file: Int? = nil) {
         self.line = line
         row = nil
+        self.file = file
+        header = nil
         self.column = column
         self.length = length
     }
@@ -32,12 +38,25 @@ struct Reveal: Equatable {
     init(row: Int) {
         line = nil
         self.row = row
+        file = nil
+        header = nil
+        column = 0
+        length = 0
+    }
+
+    init(headerOf file: Int) {
+        line = nil
+        row = nil
+        self.file = file
+        header = file
         column = 0
         length = 0
     }
 
     func row(in document: CodeDocument) -> Int? {
-        row ?? line.flatMap(document.row(forNewLine:))
+        if let row { return row }
+        if let header { return document.headerRow(forFile: header) }
+        return line.flatMap { document.row(forNewLine: $0, file: file) }
     }
 }
 

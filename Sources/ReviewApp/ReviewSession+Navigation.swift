@@ -42,14 +42,14 @@ extension ReviewSession {
     func navigationTarget(at cursor: Cursor) -> Result<(path: String, line: Int, column: Int), NavigationProblem> {
         guard navigationState == .ready else { return .failure(.notReady) }
         guard let document, document.rows.indices.contains(cursor.row) else { return .failure(.nothingThere) }
-        guard document.isNavigable else { return .failure(.afterMerge) }
+        guard document.isNavigable(atRow: cursor.row) else { return .failure(.afterMerge) }
         let row = document.rows[cursor.row]
         guard row.isCode else { return .failure(.nothingThere) }
         guard let line = row.newLine else { return .failure(.removedLine) }
         let path: String
         if let externalFile {
             path = worktree.flatMap { CodeLocation(file: externalFile, line: 1, column: 0).path(relativeTo: $0) } ?? externalFile.path
-        } else if let newPath = selectedFile?.newPath {
+        } else if let newPath = file(atRow: cursor.row)?.newPath {
             path = newPath
         } else {
             return .failure(.nothingThere)
@@ -167,7 +167,7 @@ extension ReviewSession {
         while ContinuousClock.now < deadline {
             let serversReady = !serverStatus.isEmpty && serverStatus.values.allSatisfy { $0 == .ready }
             if onlyWait, navigationState == .ready, serversReady, document != nil { return }
-            if navigationState == .ready, serversReady, let row = document?.row(forNewLine: line) {
+            if navigationState == .ready, serversReady, let row = document?.row(forNewLine: line, file: selectedFileIndex) {
                 await perform(action, at: Cursor(row: row, column: column))
                 return
             }
@@ -188,15 +188,22 @@ extension ReviewSession {
 
     private func show(_ location: CodeLocation) {
         let relative = worktree.flatMap { location.path(relativeTo: $0) }
-        if let relative, let changed = files.first(where: { $0.newPath == relative }) {
-            selectedFilePath = changed.path
+        let length = location.endLine == location.line ? max(location.endColumn - location.column, 0) : 0
+        if let relative, let index = files.firstIndex(where: { $0.newPath == relative }) {
+            // Selected as if by scrolling, so the selection itself does not
+            // replace this reveal with one for the file's header.
+            isFollowingScroll = true
+            selectedFilePath = files[index].path
+            isFollowingScroll = false
             externalFile = nil
+            pendingReveal = Reveal(
+                line: location.line, column: location.column, length: length, file: isContinuous ? index : nil
+            )
         } else {
             selectedFilePath = nil
             externalFile = location.file
+            pendingReveal = Reveal(line: location.line, column: location.column, length: length)
         }
-        let length = location.endLine == location.line ? max(location.endColumn - location.column, 0) : 0
-        pendingReveal = Reveal(line: location.line, column: location.column, length: length)
     }
 
     var canGoBack: Bool { !backStack.isEmpty }
@@ -219,18 +226,32 @@ extension ReviewSession {
         if let file = position.externalFile {
             selectedFilePath = nil
             externalFile = file
+            pendingReveal = position.line.map { Reveal(line: $0, column: 0, length: 0) }
         } else {
+            isFollowingScroll = true
             selectedFilePath = position.selectedFilePath
+            isFollowingScroll = false
             externalFile = nil
+            let index = isContinuous ? files.firstIndex { $0.path == position.selectedFilePath } : nil
+            pendingReveal = position.line.map { Reveal(line: $0, column: 0, length: 0, file: index) }
         }
-        pendingReveal = position.line.map { Reveal(line: $0, column: 0, length: 0) }
     }
 
     /// Called when a document appears. A jump to a line the diff does not
     /// show switches to the whole file, where every line is.
     func didShow(_ document: CodeDocument) {
         guard let reveal = pendingReveal, reveal.row(in: document) == nil else { return }
-        if mode == .diff, externalFile == nil {
+        if isContinuous, externalFile == nil, let line = reveal.line, let file = reveal.file {
+            // In the all-files view, open whatever hides the line rather than
+            // leaving the view: the file's fold, then the gap holding it.
+            if document.headerRow(forFile: file) != nil, !document.rows.contains(where: { $0.file == file && $0.kind != .fileHeader }) {
+                toggledFiles.formSymmetricDifference([files[file].path])
+            } else if let gapRow = document.gapRow(containing: line, file: file) {
+                expandGap(atRow: gapRow)
+            } else {
+                pendingReveal = nil
+            }
+        } else if mode == .diff, externalFile == nil {
             mode = .file
         } else {
             pendingReveal = nil

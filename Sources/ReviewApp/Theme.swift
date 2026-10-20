@@ -126,6 +126,9 @@ enum Theme {
         static let draftMarkWidth: CGFloat = 16
         static let draftMark = NSColor.controlAccentColor
         static let threadMark = NSColor.secondaryLabelColor
+        /// How far below the viewport's top edge the "file being read" is
+        /// taken from.
+        static let topRowProbe: CGFloat = 24
         /// How long the pointer rests on a symbol before its hover shows.
         static let hoverDelay = Duration.milliseconds(600)
         static let gutterColumnGap: CGFloat = 6
@@ -156,6 +159,7 @@ enum Theme {
             case .removed: .systemRed.withAlphaComponent(0.14)
             case .hunkHeader, .gap: .quaternaryLabelColor.withAlphaComponent(0.12)
             case .filler: .quaternaryLabelColor.withAlphaComponent(0.05)
+            case .fileHeader: .controlAccentColor.withAlphaComponent(0.12)
             case .context: nil
             }
         }
@@ -165,11 +169,16 @@ enum Theme {
             switch kind {
             case .added: .systemGreen
             case .removed: .systemRed
-            case .hunkHeader, .context, .gap, .filler: .tertiaryLabelColor
+            case .hunkHeader, .context, .gap, .filler, .fileHeader: .tertiaryLabelColor
             }
         }
 
         static let hunkHeaderText = NSColor.secondaryLabelColor
+        /// A file's heading in the all-files view: the code font, bold.
+        static var fileHeaderFont: NSFont {
+            NSFont.monospacedSystemFont(ofSize: font.pointSize, weight: .semibold)
+        }
+        static let fileHeaderText = NSColor.labelColor
         static let lineNumber = NSColor.tertiaryLabelColor
         static let gutterBackground = NSColor.textBackgroundColor
         static let gutterSeparator = NSColor.separatorColor

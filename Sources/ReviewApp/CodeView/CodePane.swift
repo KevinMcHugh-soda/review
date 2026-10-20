@@ -12,7 +12,11 @@ final class CodePane: NSObject, NSTextViewDelegate {
     private var shownID: String?
     private var shownScrollKey: String?
     private var revealedID: UUID?
+    private var lastTopRow: Int?
     var onSelectionChange: ((Cursor, ClosedRange<Int>?) -> Void)?
+    /// The row at the top of the viewport, as the view scrolls — the
+    /// all-files view uses it to keep the file list on the file being read.
+    var onTopRowChange: ((Int) -> Void)?
 
     override init() {
         scrollView.hasVerticalScroller = true
@@ -26,6 +30,21 @@ final class CodePane: NSObject, NSTextViewDelegate {
         scrollView.rulersVisible = true
         super.init()
         textView.delegate = self
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        // Selector-based, so it unregisters itself when the pane goes away.
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(reportTopRow), name: NSView.boundsDidChangeNotification, object: scrollView.contentView
+        )
+    }
+
+    @objc private func reportTopRow() {
+        let visible = textView.visibleRect
+        // A little below the very top edge, so a header just sliding off still
+        // counts as the file being read.
+        let probe = NSRect(x: visible.minX, y: visible.minY + Theme.Code.topRowProbe, width: visible.width, height: 1)
+        guard let top = textView.visibleRows(in: probe).first?.row, top != lastTopRow else { return }
+        lastTopRow = top
+        onTopRowChange?(top)
     }
 
     /// Shows `rows` if they are not already showing. `id` changes with
@@ -47,7 +66,7 @@ final class CodePane: NSObject, NSTextViewDelegate {
         revealedID = reveal.id
         // After this layout pass, once the new text is laid out.
         DispatchQueue.main.async { [textView] in
-            textView.reveal(row: row, column: reveal.column, length: reveal.length)
+            textView.reveal(row: row, column: reveal.column, length: reveal.length, atTop: reveal.header != nil)
         }
     }
 
