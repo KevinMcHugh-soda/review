@@ -221,7 +221,7 @@ extension ReviewSession {
     /// Called when a document appears. A jump to a line the diff does not
     /// show switches to the whole file, where every line is.
     func didShow(_ document: CodeDocument) {
-        guard let reveal = pendingReveal, document.row(forNewLine: reveal.line) == nil else { return }
+        guard let reveal = pendingReveal, reveal.row(in: document) == nil else { return }
         if mode == .diff, externalFile == nil {
             mode = .file
         } else {

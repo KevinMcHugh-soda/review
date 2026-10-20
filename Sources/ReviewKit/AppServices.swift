@@ -1,5 +1,6 @@
 import Foundation
 import ReviewClaude
+import ReviewCore
 import ReviewGit
 import ReviewGitHub
 import ReviewProcess
@@ -47,6 +48,14 @@ public struct AppServices: Sendable {
     }
 
     public var notes: NotesStore { NotesStore(root: CheckoutStore.defaultRoot) }
+
+    public var workspace: WorkspaceStore { WorkspaceStore(root: CheckoutStore.defaultRoot) }
+
+    /// Review-requested pull requests; nil when gh is missing.
+    public func inbox() async throws -> [InboxItem]? {
+        guard let gh = environment.locate(Tool.gh.executableName) else { return nil }
+        return try await GitHubClient(gh: gh, environment: environment.variables).reviewRequests()
+    }
 
     /// Nil when gh is missing.
     public var publisher: ReviewPublisher? {

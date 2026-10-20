@@ -58,5 +58,6 @@ make cli && ./.build/debug/review doctor
    ask Claude about one draft or all of them, read-only, with follow-ups
 5. ✅ **Post** — existing review threads shown inline; drafts become one
    GitHub review — comment, approve, request changes, or left pending
-6. **Daily driver** — review-requested inbox, viewed-file tracking,
-   keyboard-driven file and hunk navigation, `review open <url>`
+6. ✅ **Daily driver** — review-requested inbox, open PRs remembered across
+   launches, viewed-file tracking, keyboard change and file navigation,
+   `review open <url>` through a `review://` URL scheme

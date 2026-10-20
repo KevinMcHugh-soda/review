@@ -4,11 +4,12 @@ import SwiftUI
 /// "14 files · +320 −41" under the file list.
 struct FilesFooter: View {
     let files: [FileDiff]
+    let viewedCount: Int
 
     var body: some View {
         let additions = files.reduce(0) { $0 + $1.additions }
         let deletions = files.reduce(0) { $0 + $1.deletions }
-        Text("^[\(files.count) file](inflect: true) · +\(additions) −\(deletions)")
+        Text("\(viewedCount) of ^[\(files.count) file](inflect: true) viewed · +\(additions) −\(deletions)")
             .font(Theme.Fonts.meta)
             .monospacedDigit()
             .foregroundStyle(.secondary)

@@ -126,10 +126,26 @@ public struct ReviewNotes: Codable, Hashable, Sendable {
     /// The "ask about all drafts" conversation.
     public var overview: [ConversationTurn]
     public var overviewSessionID: String?
+    /// Files marked as viewed: path → the head blob id seen. A file whose
+    /// content changes is unviewed again, as on GitHub.
+    public var viewed: [String: String]
 
-    public init(drafts: [DraftComment] = [], overview: [ConversationTurn] = [], overviewSessionID: String? = nil) {
+    public init(
+        drafts: [DraftComment] = [], overview: [ConversationTurn] = [], overviewSessionID: String? = nil,
+        viewed: [String: String] = [:]
+    ) {
         self.drafts = drafts
         self.overview = overview
         self.overviewSessionID = overviewSessionID
+        self.viewed = viewed
+    }
+
+    // Written out so files saved before a field existed still load.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        drafts = try container.decodeIfPresent([DraftComment].self, forKey: .drafts) ?? []
+        overview = try container.decodeIfPresent([ConversationTurn].self, forKey: .overview) ?? []
+        overviewSessionID = try container.decodeIfPresent(String.self, forKey: .overviewSessionID)
+        viewed = try container.decodeIfPresent([String: String].self, forKey: .viewed) ?? [:]
     }
 }

@@ -66,6 +66,9 @@ public struct GitClient: Sendable {
                 "diff", "--no-color", "--no-ext-diff", "--no-textconv",
                 "--src-prefix=a/", "--dst-prefix=b/",
                 "--find-renames", "--unified=3",
+                // Full blob ids, whatever `core.abbrev` says: viewed-file
+                // tracking compares them across loads.
+                "--full-index",
                 base, head, "--",
             ] + paths,
             in: repository

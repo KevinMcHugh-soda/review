@@ -89,7 +89,8 @@ Two kinds of child:
 ~/Library/Application Support/Review/
   repos/<owner>/<repo>.git           managed clone, shared by every PR in that repo
   worktrees/<owner>/<repo>/<n>/head  the PR head, detached, for the servers
-  reviews/<owner>/<repo>/<n>.json    drafts and Claude conversations
+  open-pull-requests.json            the sidebar's open PRs, in order
+  reviews/<owner>/<repo>/<n>.json    drafts, Claude conversations, viewed files
   claude/<owner>/<repo>/<n>/         the empty directory claude -p runs in
 ```
 

@@ -33,6 +33,8 @@ struct CheckoutAndDiffTests {
         #expect(byPath["run.sh"]?.newMode == "100755")
         #expect(byPath["my file.go"]?.status == .modified)
         #expect(byPath["café.go"]?.status == .modified)
+        // Full ids, despite the hostile config: viewed tracking compares them.
+        #expect(byPath["main.go"]?.newBlob?.count == 40)
         #expect(byPath["noeol.txt"]?.hunks.first?.lines.allSatisfy { $0.kind == .context || $0.isMissingNewline } == true)
     }
 

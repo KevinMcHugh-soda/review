@@ -5,6 +5,7 @@ import SwiftUI
 /// and its line counts.
 struct FileRow: View {
     let file: FileDiff
+    @Binding var isViewed: Bool
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.spacing) {
@@ -26,7 +27,12 @@ struct FileRow: View {
             }
             Spacer(minLength: Theme.tightSpacing)
             FileCounts(file: file)
+            Toggle("Viewed", isOn: $isViewed)
+                .toggleStyle(.checkbox)
+                .labelsHidden()
+                .help(isViewed ? "Viewed — unmark (⌥⌘V)" : "Mark as viewed (⌥⌘V)")
         }
+        .opacity(isViewed ? 0.55 : 1)
         .help(helpText)
     }
 

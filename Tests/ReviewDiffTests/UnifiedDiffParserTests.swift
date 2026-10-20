@@ -31,6 +31,32 @@ struct UnifiedDiffParserTests {
         #expect(file.deletions == 1)
     }
 
+    @Test("Reads blob ids from the index line, with all zeros meaning absent")
+    func blobs() throws {
+        let diff = """
+            diff --git a/x.go b/x.go
+            index 1111111111111111111111111111111111111111..2222222222222222222222222222222222222222 100644
+            --- a/x.go
+            +++ b/x.go
+            @@ -1 +1 @@
+            -a
+            +b
+            diff --git a/new.go b/new.go
+            new file mode 100644
+            index 0000000000000000000000000000000000000000..3333333333333333333333333333333333333333
+            --- /dev/null
+            +++ b/new.go
+            @@ -0,0 +1 @@
+            +c
+
+            """
+        let files = try UnifiedDiffParser.parse(diff)
+        #expect(files[0].oldBlob == String(repeating: "1", count: 40))
+        #expect(files[0].newBlob == String(repeating: "2", count: 40))
+        #expect(files[1].oldBlob == nil)
+        #expect(files[1].newBlob == String(repeating: "3", count: 40))
+    }
+
     @Test("Reads an omitted count as one")
     func omittedCount() throws {
         let diff = """

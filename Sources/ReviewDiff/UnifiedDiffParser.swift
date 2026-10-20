@@ -59,6 +59,8 @@ public struct UnifiedDiffParser {
         var oldMode: String?
         var newMode: String?
         var similarity: Int?
+        var oldBlob: String?
+        var newBlob: String?
         var hunks: [Hunk] = []
 
         while index < lines.count, !lines[index].hasPrefix("diff --git ") {
@@ -89,6 +91,14 @@ public struct UnifiedDiffParser {
                 oldMode = value
             } else if let value = line.value(after: "new mode ") {
                 newMode = value
+            } else if let value = line.value(after: "index ") {
+                // `index <old>..<new>[ <mode>]`; all-zero ids mean "absent".
+                // Hex ids contain no dots, so splitting on "." finds both.
+                let ids = value.split(separator: " ").first?.split(separator: ".").map(String.init) ?? []
+                if ids.count == 2 {
+                    oldBlob = ids[0].allSatisfy { $0 == "0" } ? nil : ids[0]
+                    newBlob = ids[1].allSatisfy { $0 == "0" } ? nil : ids[1]
+                }
             } else if line.hasPrefix("Binary files ") || line == "GIT binary patch" {
                 isBinary = true
             }
@@ -105,7 +115,8 @@ public struct UnifiedDiffParser {
 
         return FileDiff(
             oldPath: oldPath, newPath: newPath, isBinary: isBinary,
-            oldMode: oldMode, newMode: newMode, similarity: similarity, hunks: hunks
+            oldMode: oldMode, newMode: newMode, similarity: similarity,
+            oldBlob: oldBlob, newBlob: newBlob, hunks: hunks
         )
     }
 

@@ -13,7 +13,7 @@ struct Review: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "review",
         abstract: "Review GitHub pull requests.",
-        subcommands: [Show.self, Threads.self, Post.self, Doctor.self, Version.self]
+        subcommands: [Open.self, Show.self, Threads.self, Post.self, Doctor.self, Version.self]
     )
 }
 

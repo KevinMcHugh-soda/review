@@ -80,7 +80,7 @@ struct CodeView: NSViewRepresentable {
         if textView.draftRows != draftRows { textView.draftRows = draftRows }
         if textView.threadRows != threadRows { textView.threadRows = threadRows }
 
-        if let reveal, reveal.id != coordinator.revealedID, let row = document.row(forNewLine: reveal.line) {
+        if let reveal, reveal.id != coordinator.revealedID, let row = reveal.row(in: document) {
             coordinator.revealedID = reveal.id
             // After this layout pass, once the new text is laid out.
             DispatchQueue.main.async {

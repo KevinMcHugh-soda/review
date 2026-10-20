@@ -10,6 +10,11 @@ public struct FileDiff: Hashable, Sendable {
     public let newMode: String?
     /// Rename similarity as git reports it, 0–100.
     public let similarity: Int?
+    /// The blob ids from the `index` line — full ids, because the diff is
+    /// asked for with `--full-index`. Nil for a pure rename, which has no
+    /// `index` line, and for the missing side of an add or delete.
+    public let oldBlob: String?
+    public let newBlob: String?
     public let hunks: [Hunk]
 
     public init(
@@ -19,6 +24,8 @@ public struct FileDiff: Hashable, Sendable {
         oldMode: String? = nil,
         newMode: String? = nil,
         similarity: Int? = nil,
+        oldBlob: String? = nil,
+        newBlob: String? = nil,
         hunks: [Hunk]
     ) {
         self.oldPath = oldPath
@@ -27,6 +34,8 @@ public struct FileDiff: Hashable, Sendable {
         self.oldMode = oldMode
         self.newMode = newMode
         self.similarity = similarity
+        self.oldBlob = oldBlob
+        self.newBlob = newBlob
         self.hunks = hunks
     }
 

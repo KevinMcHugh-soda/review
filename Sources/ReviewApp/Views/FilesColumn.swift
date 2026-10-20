@@ -28,8 +28,11 @@ struct FilesColumn: View {
             }
         case .loaded(let review):
             List(review.files, selection: $session.selectedFilePath) { file in
-                FileRow(file: file)
-                    .tag(file.path)
+                FileRow(file: file, isViewed: Binding(
+                    get: { session.isViewed(file) },
+                    set: { session.setViewed($0, file) }
+                ))
+                .tag(file.path)
             }
             .overlay {
                 if review.files.isEmpty {
@@ -37,7 +40,7 @@ struct FilesColumn: View {
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                FilesFooter(files: review.files)
+                FilesFooter(files: review.files, viewedCount: session.viewedCount)
             }
         }
     }

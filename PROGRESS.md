@@ -221,10 +221,56 @@ across pages and deleted authors.
 existing pending review (GitHub's REST API cannot, GraphQL's
 `addPullRequestReviewThread` could).
 
-## Next: milestone 6 — daily driver
+## Milestone 6 — daily driver ✅
 
-Review-requested inbox, viewed-file tracking, keyboard file and hunk
-navigation, `review open <url>`.
+**What exists:**
+
+- **Open PRs survive a relaunch.** `open-pull-requests.json` keeps the
+  sidebar's list in order; sessions are recreated but load only when first
+  selected.
+- **Review Requested inbox**, a second sidebar section from
+  `gh search prs --review-requested=@me --state=open`, newest activity first,
+  drafts tagged. Selecting one opens it. Refresh with ⌘R or the header button.
+- **Viewed files.** A checkbox per file, ⌥⌘V to mark viewed and jump to the
+  next unviewed file, "n of m files viewed" in the footer. Pinned to the
+  file's head blob id, like GitHub: a push that changes the file unmarks it,
+  one that does not leaves it marked. The diff is now `--full-index` so the
+  ids are full whatever `core.abbrev` says. Local only — GitHub's own viewed
+  state is not synced.
+- **Change navigation**: ⌃⌘↓ / ⌃⌘↑ to the next/previous hunk in Diff view,
+  the next/previous run of added lines in File view. Reveals can now target a
+  row, for hunks of removed lines only.
+- **`review open <pr>`** → `review://open?pr=…`, registered in Info.plist and
+  routed to the existing window. Needs the app registered (`make register`
+  for ./build, `make install` for /Applications).
+
+**Verified:** with the app quit, `review open spf13/cobra#2397` launched it;
+`review open https://github.com/sindresorhus/ky/pull/881/files` then went to
+the same process (one process, both PRs in the saved list). A plain relaunch
+rendered the restored sidebar, the inbox with the reviewer's real review
+requests, viewed checkboxes and "0 of 5 files viewed".
+
+**Tests: 96** (+1 opt-in live): blob ids from the `index` line, viewed state
+across pushes, renames and deletes, inbox decoding, the open-PR store, and
+full ids under a hostile `core.abbrev`.
+
+**Not yet:** change navigation was not exercised visually; the restored
+sidebar shows `#2397` for a PR until it loads (titles are not cached); inbox
+titles render in a quieter colour than open PRs, which may want a look.
+
+## What next
+
+The plan's milestones are done. Candidates, roughly by value:
+
+1. **A first real post** — on a throwaway PR you own, or as a pending review.
+2. Expand context between hunks, and a side-by-side diff.
+3. Hover (already in `Navigator`), and a ⌘-hover underline for jumpable
+   symbols.
+4. Reply to and resolve existing threads; add drafts to a pending review via
+   GraphQL.
+5. Navigation on removed lines (a base worktree) and in the after-merge view
+   (a merge worktree).
+6. Sync viewed state with GitHub (`markFileAsViewed`).
 
 ## Things that bit us
 
@@ -314,3 +360,10 @@ pages yourself.
 
 **A sheet is its own window.** Snapshotting the main window shows it dimmed
 with nothing on top; `writeSnapshot` now also writes the attached sheet.
+
+**Swift `"""` inside a Python `"""` edit ends the Python string.** Write the
+Swift snippet to a file and splice it in.
+
+**A URL-scheme launch cannot take `REVIEW_SNAPSHOT`.** `open review://…`
+starts the app without the shell's environment; verify by the saved open-PR
+list and the process count instead.

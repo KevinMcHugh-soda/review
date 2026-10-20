@@ -19,13 +19,21 @@ final class AppModel {
     private var sessions: [PullRequestReference: ReviewSession] = [:]
     private var startup: Task<Void, Never>?
 
+    /// Pull requests waiting on the reviewer, from GitHub; empty until loaded.
+    private(set) var inbox: [InboxItem] = []
+    private(set) var isLoadingInbox = false
+    private(set) var inboxError: String?
+
     /// Asks the login shell for its environment, then checks the tools.
     /// Safe to call from several places at once: they all wait on one startup.
     func start() async {
         if startup == nil {
             startup = Task {
-                services = await AppServices.start()
+                let services = await AppServices.start()
+                self.services = services
+                restoreOpenPullRequests(from: services.workspace)
                 await checkTools()
+                await refreshInbox()
             }
         }
         await startup?.value
@@ -35,6 +43,11 @@ final class AppModel {
     func start(applying options: LaunchOptions) async {
         await start()
         guard let pullRequest = options.pullRequest, (try? open(pullRequest)) != nil, let selected = selectedSession else {
+            if let snapshotPath = options.snapshotPath {
+                try? await Task.sleep(for: .seconds(4))
+                LaunchOptions.writeSnapshot(to: snapshotPath)
+                NSApplication.shared.terminate(nil)
+            }
             return
         }
         if options.wholeFile { selected.mode = .file }
@@ -68,10 +81,14 @@ final class AppModel {
 
     /// Opens a pull request from pasted text, selecting it if already open.
     func open(_ input: String) throws(PullRequestReference.ParseError) {
-        let reference = try PullRequestReference(parsing: input)
+        open(try PullRequestReference(parsing: input))
+    }
+
+    func open(_ reference: PullRequestReference) {
         if !pullRequests.contains(reference) {
             pullRequests.insert(reference, at: 0)
             sessions[reference] = ReviewSession(reference: reference)
+            saveOpenPullRequests()
         }
         selection = reference
     }
@@ -82,6 +99,56 @@ final class AppModel {
             Task { await session.close() }
         }
         if selection == reference { selection = pullRequests.first }
+        saveOpenPullRequests()
+    }
+
+    /// The sidebar's selection changed: an inbox item is opened on selection.
+    func didSelect(_ reference: PullRequestReference?) {
+        guard let reference, !pullRequests.contains(reference) else { return }
+        open(reference)
+    }
+
+    /// `review://open?pr=owner/repo%23123` — from `review open`, or a link.
+    func handle(_ url: URL) {
+        guard url.scheme == "review",
+              let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "pr" })?.value
+        else { return }
+        try? open(value)
+    }
+
+    // MARK: Open pull requests across launches
+
+    /// Sessions are made but not loaded: each loads when it is first selected.
+    private func restoreOpenPullRequests(from workspace: WorkspaceStore) {
+        for reference in workspace.load() where !pullRequests.contains(reference) {
+            pullRequests.append(reference)
+            sessions[reference] = ReviewSession(reference: reference)
+        }
+        if selection == nil { selection = pullRequests.first }
+    }
+
+    private func saveOpenPullRequests() {
+        try? services?.workspace.save(pullRequests)
+    }
+
+    // MARK: Inbox
+
+    /// Review requests not already open, for the sidebar's second section.
+    var unopenedInbox: [InboxItem] {
+        inbox.filter { !pullRequests.contains($0.reference) }
+    }
+
+    func refreshInbox() async {
+        guard let services, !isLoadingInbox else { return }
+        isLoadingInbox = true
+        defer { isLoadingInbox = false }
+        do {
+            inbox = try await services.inbox() ?? []
+            inboxError = nil
+        } catch {
+            inboxError = "\(error)"
+        }
     }
 
     var selectedSession: ReviewSession? {

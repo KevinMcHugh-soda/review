@@ -10,14 +10,56 @@ struct RootView: View {
         @Bindable var model = model
 
         NavigationSplitView {
-            List(model.pullRequests, id: \.self, selection: $model.selection) { reference in
-                PullRequestRow(reference: reference, session: model.session(for: reference))
-                    .contextMenu {
-                        Link("Open on GitHub", destination: reference.webURL)
-                        Divider()
-                        Button("Close") { model.close(reference) }
+            List(selection: $model.selection) {
+                if !model.pullRequests.isEmpty {
+                    Section("Open") {
+                        ForEach(model.pullRequests, id: \.self) { reference in
+                            PullRequestRow(reference: reference, session: model.session(for: reference))
+                                .tag(reference)
+                                .contextMenu {
+                                    Link("Open on GitHub", destination: reference.webURL)
+                                    Divider()
+                                    Button("Close") { model.close(reference) }
+                                }
+                        }
                     }
+                }
+                Section {
+                    ForEach(model.unopenedInbox) { item in
+                        InboxRow(item: item)
+                            .tag(item.reference)
+                            .contextMenu {
+                                Link("Open on GitHub", destination: item.reference.webURL)
+                            }
+                    }
+                    if let error = model.inboxError {
+                        Text(error)
+                            .font(Theme.Fonts.meta)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                    } else if model.unopenedInbox.isEmpty, !model.isLoadingInbox {
+                        Text("Nothing waiting on you.")
+                            .font(Theme.Fonts.meta)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    HStack {
+                        Text("Review Requested")
+                        Spacer()
+                        if model.isLoadingInbox {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Button("Refresh", systemImage: "arrow.clockwise") {
+                                Task { await model.refreshInbox() }
+                            }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.borderless)
+                            .help("Refresh review requests (⌘R)")
+                        }
+                    }
+                }
             }
+            .onChange(of: model.selection) { _, reference in model.didSelect(reference) }
             .navigationSplitViewColumnWidth(
                 min: Theme.sidebarMinWidth,
                 ideal: Theme.sidebarIdealWidth,
@@ -28,15 +70,6 @@ struct RootView: View {
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 ToolStatusFooter()
-            }
-            .overlay {
-                if model.pullRequests.isEmpty {
-                    ContentUnavailableView(
-                        "No Pull Requests",
-                        systemImage: "arrow.triangle.pull",
-                        description: Text("Paste a pull request URL above.")
-                    )
-                }
             }
         } content: {
             if let session = model.selectedSession {
@@ -68,6 +101,9 @@ struct RootView: View {
         .navigationTitle(title)
         .navigationSubtitle(subtitle)
         .focusedSceneValue(\.reviewSession, model.selectedSession)
+        .onOpenURL { model.handle($0) }
+        // Route `review://` links to this window rather than a new one.
+        .handlesExternalEvents(preferring: ["review"], allowing: ["*"])
     }
 
     private var title: String {

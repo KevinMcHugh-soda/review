@@ -54,6 +54,7 @@ struct FixtureRepository {
                 ui = always
             [core]
                 quotePath = true
+                abbrev = 7
             [uploadpack]
                 allowFilter = true
                 allowAnySHA1InWant = true

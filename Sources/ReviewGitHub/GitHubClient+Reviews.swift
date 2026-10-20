@@ -145,3 +145,53 @@ private struct CreatedReview: Decodable {
         case htmlURL = "html_url"
     }
 }
+
+extension GitHubClient {
+    /// Open pull requests where the viewer's review is requested, newest
+    /// activity first.
+    public func reviewRequests(limit: Int = 50) async throws -> [InboxItem] {
+        let output = try await Subprocess.run(
+            gh,
+            [
+                "search", "prs", "--review-requested=@me", "--state=open", "--limit", String(limit),
+                "--json", "number,title,repository,author,updatedAt,isDraft",
+            ],
+            environment: environment,
+            timeout: .seconds(60)
+        )
+        guard output.succeeded else {
+            throw GitHubError.failed(status: output.status, message: output.stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        do {
+            return try Self.decodeInbox(output.stdout)
+        } catch {
+            throw GitHubError.unreadable("\(error)")
+        }
+    }
+
+    static func decodeInbox(_ data: Data) throws -> [InboxItem] {
+        struct Result: Decodable {
+            struct Repository: Decodable { let nameWithOwner: String }
+            struct Author: Decodable { let login: String }
+            let number: Int
+            let title: String
+            let repository: Repository
+            let author: Author?
+            let updatedAt: Date
+            let isDraft: Bool
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([Result].self, from: data)
+            .compactMap { result in
+                guard let reference = try? PullRequestReference(parsing: "\(result.repository.nameWithOwner)#\(result.number)") else {
+                    return nil
+                }
+                return InboxItem(
+                    reference: reference, title: result.title, author: result.author?.login ?? "ghost",
+                    isDraft: result.isDraft, updatedAt: result.updatedAt
+                )
+            }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+}

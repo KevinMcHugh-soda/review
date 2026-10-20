@@ -56,7 +56,8 @@ Every option that changes the output format is pinned, because user config
 can change each of them: `--src-prefix=a/ --dst-prefix=b/` (against
 `diff.noprefix`/`diff.mnemonicPrefix`), `--find-renames` (`diff.renames`),
 `--unified=3` (`diff.context`), `--no-color`, `--no-ext-diff`,
-`--no-textconv`, and `core.quotePath=false`. The end-to-end test runs under
+`--no-textconv`, `--full-index` (against `core.abbrev`; viewed-file tracking
+compares blob ids across loads), and `core.quotePath=false`. The end-to-end test runs under
 a global config that sets all of them; dropping the prefix pin fails it.
 
 ## "After merge"

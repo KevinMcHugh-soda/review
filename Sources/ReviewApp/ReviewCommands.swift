@@ -28,6 +28,13 @@ struct ReviewCommands: Commands {
                 .keyboardShortcut("2", modifiers: .command)
                 .disabled(session?.selectedFile == nil)
             Divider()
+            Button("Next Change") { session?.revealChange(offset: 1) }
+                .keyboardShortcut(.downArrow, modifiers: [.control, .command])
+                .disabled(session?.document == nil)
+            Button("Previous Change") { session?.revealChange(offset: -1) }
+                .keyboardShortcut(.upArrow, modifiers: [.control, .command])
+                .disabled(session?.document == nil)
+            Divider()
             Button("Next File") { session?.selectFile(offset: 1) }
                 .keyboardShortcut(.downArrow, modifiers: [.command, .option])
                 .disabled(session?.review == nil)
@@ -37,6 +44,12 @@ struct ReviewCommands: Commands {
             Divider()
         }
         CommandMenu("Review") {
+            Button(session?.selectedFile.map { session?.isViewed($0) == true } == true ? "Mark as Not Viewed" : "Mark as Viewed and Go to Next") {
+                session?.toggleViewedAndAdvance()
+            }
+            .keyboardShortcut("v", modifiers: [.command, .option])
+            .disabled(session?.selectedFile == nil)
+            Divider()
             Button("Add Comment") { session?.addDraft() }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
                 .disabled(session?.document == nil)

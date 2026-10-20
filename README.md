@@ -27,8 +27,11 @@ make cli        # the companion `review` command-line tool
 ```
 
 ```sh
+review open <pr>                 # open it in Review.app (after make install or make register)
 review show <pr>                 # fetch a PR and list its files
 review show <pr> <path> [--file] [--spans]
+review threads <pr>              # the review threads already on it
+review post <pr> --dry-run       # where your drafts would land, and the request
 review doctor                    # are git, gh, the servers and claude found?
 ```
 
