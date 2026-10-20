@@ -22,6 +22,8 @@ let sources = [
     Source(file: "javascript-highlights.scm", constant: "javaScriptHighlights", origin: "tree-sitter-javascript v0.23.1, queries/highlights.scm"),
     Source(file: "javascript-jsx-highlights.scm", constant: "jsxHighlights", origin: "tree-sitter-javascript v0.23.1, queries/highlights-jsx.scm"),
     Source(file: "typescript-highlights.scm", constant: "typeScriptHighlights", origin: "tree-sitter-typescript v0.23.2, queries/highlights.scm"),
+    Source(file: "json-highlights.scm", constant: "jsonHighlights", origin: "tree-sitter-json v0.24.8, queries/highlights.scm"),
+    Source(file: "yaml-highlights.scm", constant: "yamlHighlights", origin: "tree-sitter-yaml v0.7.0 (tree-sitter-grammars), queries/highlights.scm"),
 ]
 
 var output = """

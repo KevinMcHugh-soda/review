@@ -1,8 +1,10 @@
 import Foundation
 import SwiftTreeSitter
 import TreeSitterGo
+import TreeSitterJSON
 import TreeSitterTSX
 import TreeSitterTypeScript
+import TreeSitterYAML
 
 /// Parses a whole file with tree-sitter and returns its highlight spans.
 public enum Highlighter {
@@ -65,6 +67,8 @@ struct CompiledLanguage: Sendable {
         case .go: try go.get()
         case .typeScript: try typeScript.get()
         case .tsx: try tsx.get()
+        case .json: try json.get()
+        case .yaml: try yaml.get()
         }
     }
 
@@ -94,6 +98,24 @@ struct CompiledLanguage: Sendable {
             language: Language(language: tree_sitter_tsx()),
             source: VendoredQueries.javaScriptHighlights + "\n" + VendoredQueries.jsxHighlights + "\n"
                 + VendoredQueries.typeScriptHighlights,
+            precedence: .lastPatternWins
+        )
+    }
+
+    // JSON's query names keys first and strings after: first match wins.
+    private static let json = Result {
+        try Self(
+            language: Language(language: tree_sitter_json()),
+            source: VendoredQueries.jsonHighlights,
+            precedence: .firstPatternWins
+        )
+    }
+
+    // YAML's lists every string, then the ones that are keys: last match wins.
+    private static let yaml = Result {
+        try Self(
+            language: Language(language: tree_sitter_yaml()),
+            source: VendoredQueries.yamlHighlights,
             precedence: .lastPatternWins
         )
     }

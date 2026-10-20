@@ -42,6 +42,31 @@ struct HighlighterTests {
         #expect(kinds["greet"] == .function)
     }
 
+    @Test("Colours JSON keys apart from string values, with numbers, literals and comments")
+    func json() {
+        let text = "{\n  // tsconfig allows comments\n  \"name\": \"review\",\n  \"strict\": true,\n  \"port\": 8080,\n  \"tags\": null\n}\n"
+        let kinds = finalKinds(text, .json)
+        #expect(kinds["\"name\""] == .property)
+        #expect(kinds["\"review\""] == .string)
+        #expect(kinds["true"] == .keyword || kinds["true"] == .constant)
+        #expect(kinds["8080"] == .number)
+        #expect(kinds["null"] == .keyword || kinds["null"] == .constant)
+        #expect(kinds["// tsconfig allows comments"] == .comment)
+    }
+
+    @Test("Colours YAML keys apart from values, with numbers, booleans, anchors and comments")
+    func yaml() {
+        let text = "# deploy config\nname: review\nreplicas: 3\nenabled: true\nbase: &defaults\n  image: \"app:1.0\"\nprod:\n  <<: *defaults\n"
+        let kinds = finalKinds(text, .yaml)
+        #expect(kinds["name"] == .property)
+        #expect(kinds["review"] == .string)
+        #expect(kinds["3"] == .number)
+        #expect(kinds["true"] == .constant)
+        #expect(kinds["# deploy config"] == .comment)
+        #expect(kinds["\"app:1.0\""] == .string)
+        #expect(kinds["defaults"] == .constant)
+    }
+
     @Test("Parses JSX with the TSX grammar")
     func tsx() {
         let text = "export const A = () => <div className=\"x\">hi</div>\n"
@@ -81,6 +106,9 @@ struct HighlighterTests {
         #expect(SyntaxLanguage(path: "src/app.ts") == .typeScript)
         #expect(SyntaxLanguage(path: "src/App.tsx") == .tsx)
         #expect(SyntaxLanguage(path: "index.mjs") == .tsx)
+        #expect(SyntaxLanguage(path: "tsconfig.json") == .json)
+        #expect(SyntaxLanguage(path: ".github/workflows/ci.yml") == .yaml)
+        #expect(SyntaxLanguage(path: "deploy/values.yaml") == .yaml)
         #expect(SyntaxLanguage(path: "README.md") == nil)
     }
 

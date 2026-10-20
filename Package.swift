@@ -30,6 +30,12 @@ let package = Package(
         .package(url: "https://github.com/ChimeHQ/SwiftTreeSitter", from: "0.25.0"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-go", from: "0.25.0"),
         .package(url: "https://github.com/tree-sitter/tree-sitter-typescript", from: "0.23.2"),
+        .package(url: "https://github.com/tree-sitter/tree-sitter-json", from: "0.24.8"),
+        // Exactly 0.7.0: from 0.7.1 its manifest adds scanner.c only if
+        // `fileExists("src/scanner.c")`, a relative path SwiftPM never resolves
+        // from the package directory — so the scanner is left out and linking
+        // fails with undefined `tree_sitter_yaml_external_scanner_*`.
+        .package(url: "https://github.com/tree-sitter-grammars/tree-sitter-yaml", exact: "0.7.0"),
     ],
     targets: [
         // Pure logic.
@@ -48,6 +54,8 @@ let package = Package(
                 .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
                 .product(name: "TreeSitterGo", package: "tree-sitter-go"),
                 .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
+                .product(name: "TreeSitterJSON", package: "tree-sitter-json"),
+                .product(name: "TreeSitterYAML", package: "tree-sitter-yaml"),
             ]
         ),
         // JSON-RPC to gopls and the TypeScript servers.

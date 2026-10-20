@@ -70,7 +70,9 @@ mkdir -p .claude/skills/swift \
 
 Dependencies: [swift-argument-parser](https://github.com/apple/swift-argument-parser),
 [SwiftTreeSitter](https://github.com/ChimeHQ/SwiftTreeSitter),
-[tree-sitter-go](https://github.com/tree-sitter/tree-sitter-go) and
-[tree-sitter-typescript](https://github.com/tree-sitter/tree-sitter-typescript).
+[tree-sitter-go](https://github.com/tree-sitter/tree-sitter-go),
+[tree-sitter-typescript](https://github.com/tree-sitter/tree-sitter-typescript),
+[tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json) and
+[tree-sitter-yaml](https://github.com/tree-sitter-grammars/tree-sitter-yaml).
 The highlight queries are vendored from the grammar repositories (and
 tree-sitter-javascript); their MIT licences are in `ThirdPartyLicenses/`.

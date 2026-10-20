@@ -305,6 +305,13 @@ layout, and added files.
 continuous view, and viewed files collapsing — exercised by tests at the
 document level but not clicked in the app.
 
+## JSON and YAML highlighting
+
+Tree-sitter grammars for both, keys coloured as properties. Rendered on
+spf13/cobra#2337 (a GitHub Actions workflow); tests cover keys, values,
+numbers, booleans, comments (JSONC), anchors, and each language's precedence
+(flipping JSON's makes its test fail). **Tests: 107.**
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
@@ -442,3 +449,8 @@ launch; the load now reveals an already-selected file.
 
 **Centring a file's header puts the previous file at the top.** With the
 file list following the top row, it jumped back. Headers reveal to the top.
+
+**A grammar package's manifest can silently drop a source file.**
+`tree-sitter-yaml` 0.7.1+ guards `scanner.c` with a relative `fileExists`,
+which is always false under SwiftPM; the build links fine until something
+calls the language. Pinned to 0.7.0, whose manifest lists it.

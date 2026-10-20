@@ -159,4 +159,17 @@ build under SwiftPM with Command Line Tools only before it was adopted.
   vendored query is tagged with its convention (`Precedence`), and a test pins
   each — a Go method call once came out as a property.
 
-LSP semantic tokens may be layered on top in M3, once a server is warm.
+**JSON and YAML** too, from `tree-sitter-json` 0.24.8 and
+`tree-sitter-yaml` 0.7.0 (tree-sitter-grammars). Keys take the property
+colour so they read apart from values; JSON's `string.special.key` capture is
+mapped to it. Precedence again differs: JSON names keys before strings (first
+wins), YAML strings before keys (last wins), and a test fails if either is
+flipped. `.json`, `.jsonc`, `.json5`, `.yaml`, `.yml`.
+
+`tree-sitter-yaml` is pinned to exactly 0.7.0: from 0.7.1 its manifest adds
+`scanner.c` only if `FileManager.fileExists(atPath: "src/scanner.c")` — a
+relative path, which SwiftPM does not evaluate from the package's directory,
+so the scanner is silently dropped and linking fails on
+`tree_sitter_yaml_external_scanner_*`.
+
+LSP semantic tokens may be layered on top later, once a server is warm.

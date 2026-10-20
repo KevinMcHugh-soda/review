@@ -26,7 +26,9 @@ public enum TokenKind: String, Hashable, Sendable, CaseIterable {
         switch head {
         case "keyword", "conditional", "repeat", "include", "exception": self = .keyword
         case "string":
-            self = second == "escape" ? .escape : .string
+            // `string.special.key` is a JSON object key: shown as a property,
+            // so keys and values read apart.
+            self = if second == "escape" { .escape } else if parts.contains("key") { .property } else { .string }
         case "escape": self = .escape
         case "comment": self = .comment
         case "number", "float": self = .number
