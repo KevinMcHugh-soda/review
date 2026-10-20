@@ -12,6 +12,21 @@ public struct DraftComment: Codable, Hashable, Sendable, Identifiable {
     public var conversation: [ConversationTurn]
     /// The `claude -p` session the conversation lives in, for `--resume`.
     public var claudeSessionID: String?
+    /// Kept private when the review is posted.
+    public var isExcludedFromReview: Bool
+    /// Set once the draft has gone to GitHub.
+    public var posted: Posted?
+
+    public struct Posted: Codable, Hashable, Sendable {
+        public let date: Date
+        /// The review it went out in.
+        public let reviewURL: URL?
+
+        public init(date: Date, reviewURL: URL?) {
+            self.date = date
+            self.reviewURL = reviewURL
+        }
+    }
 
     public init(anchor: CommentAnchor, body: String = "", at date: Date = .now) {
         id = UUID()
@@ -20,6 +35,21 @@ public struct DraftComment: Codable, Hashable, Sendable, Identifiable {
         createdAt = date
         updatedAt = date
         conversation = []
+        isExcludedFromReview = false
+    }
+
+    // Written out so files saved before a field existed still load.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        anchor = try container.decode(CommentAnchor.self, forKey: .anchor)
+        body = try container.decode(String.self, forKey: .body)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+        conversation = try container.decodeIfPresent([ConversationTurn].self, forKey: .conversation) ?? []
+        claudeSessionID = try container.decodeIfPresent(String.self, forKey: .claudeSessionID)
+        isExcludedFromReview = try container.decodeIfPresent(Bool.self, forKey: .isExcludedFromReview) ?? false
+        posted = try container.decodeIfPresent(Posted.self, forKey: .posted)
     }
 }
 

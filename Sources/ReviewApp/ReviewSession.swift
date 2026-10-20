@@ -77,6 +77,13 @@ final class ReviewSession {
     var askTasks: [UUID: Task<Void, Never>] = [:]
     var pendingSave: Task<Void, Never>?
 
+    // GitHub; see ReviewSession+Posting.swift.
+    var publisher: ReviewPublisher?
+    var threads: [ReviewThread] = []
+    var threadsError: String?
+    var selectedThreadID: String?
+    var isPostSheetShown = false
+
     /// Documents already built this session, keyed like `documentKey`.
     private var documents: [String: CodeDocument] = [:]
 
@@ -111,6 +118,7 @@ final class ReviewSession {
         let environment = services.environment
         notesStore = services.notes
         assistant = services.assistant
+        publisher = services.publisher
         loadNotes()
         hasStarted = true
         phase = .loading(nil)
@@ -123,6 +131,7 @@ final class ReviewSession {
             if selectedFilePath == nil || selectedFile == nil {
                 selectedFilePath = review.files.first?.path
             }
+            Task { await loadThreads() }
             await prepareNavigation(review, checkouts: loader.checkouts, environment: environment)
         } catch {
             phase = .failed("\(error)")

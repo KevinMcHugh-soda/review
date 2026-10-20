@@ -21,6 +21,10 @@ final class CodeTextView: NSTextView {
     var draftRows: [Int: UUID] = [:] {
         didSet { enclosingScrollView?.verticalRulerView?.needsDisplay = true }
     }
+    /// Rows with a thread already on GitHub.
+    var threadRows: [Int: String] = [:] {
+        didSet { enclosingScrollView?.verticalRulerView?.needsDisplay = true }
+    }
 
     static func make() -> CodeTextView {
         let storage = NSTextStorage()

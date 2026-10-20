@@ -32,6 +32,9 @@ struct CodeDetail: View {
             }
         }
         .task(id: session.documentKey) { await session.loadDocument() }
+        .sheet(isPresented: $session.isPostSheetShown) {
+            PostReviewSheet(session: session)
+        }
         .inspector(isPresented: $session.isInspectorShown) {
             DraftsInspector(session: session)
                 .inspectorColumnWidth(min: Theme.inspectorMinWidth, ideal: Theme.inspectorIdealWidth, max: Theme.inspectorMaxWidth)
@@ -106,6 +109,7 @@ struct CodeDetail: View {
                         documentID: id,
                         reveal: session.pendingReveal,
                         draftRows: session.draftRows,
+                        threadRows: session.threadRows,
                         onSelectionChange: { cursor, rows in
                             session.cursor = cursor
                             session.selectedRows = rows
@@ -116,6 +120,10 @@ struct CodeDetail: View {
                         onAddComment: { session.addDraft() },
                         onSelectDraft: { id in
                             session.selectedDraftID = id
+                            session.isInspectorShown = true
+                        },
+                        onSelectThread: { id in
+                            session.selectedThreadID = id
                             session.isInspectorShown = true
                         }
                     )

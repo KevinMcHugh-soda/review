@@ -11,6 +11,8 @@ import Foundation
 ///   UTF-16 column once the servers are ready.
 /// - `--comment <start>[-<end>] --note <text> [--ask]` adds a draft on those
 ///   head-side lines, and with `--ask` asks Claude and waits for the answer.
+/// - `--post-sheet` opens the Post Review sheet (it only plans; nothing is
+///   sent without pressing Post).
 /// - `REVIEW_SNAPSHOT=<png>` renders the key window to that file once loading
 ///   settles, then quits. The agent's terminal has no Screen Recording
 ///   permission, so `screencapture` sees only the desktop; drawing our own
@@ -22,6 +24,7 @@ struct LaunchOptions {
     let wholeFile: Bool
     let navigation: (action: NavigationAction, line: Int, column: Int)?
     let comment: (lines: ClosedRange<Int>, note: String, ask: Bool)?
+    let opensPostSheet: Bool
     let snapshotPath: String?
 
     static let current = Self(
@@ -50,14 +53,24 @@ struct LaunchOptions {
         } else {
             comment = nil
         }
+        opensPostSheet = arguments.contains("--post-sheet")
         snapshotPath = environment["REVIEW_SNAPSHOT"]
     }
 
-    /// Writes the key window's contents to `snapshotPath` as a PNG.
+    /// Writes the main window's contents to `path` as a PNG, and an attached
+    /// sheet — a separate window — beside it as `<name>-sheet.png`.
     @MainActor
     static func writeSnapshot(to path: String) {
-        guard let window = NSApp.keyWindow ?? NSApp.windows.first(where: \.isVisible),
-              let view = window.contentView?.superview ?? window.contentView,
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }) else { return }
+        write(window, to: path)
+        if let sheet = window.attachedSheet {
+            write(sheet, to: (path as NSString).deletingPathExtension + "-sheet.png")
+        }
+    }
+
+    @MainActor
+    private static func write(_ window: NSWindow, to path: String) {
+        guard let view = window.contentView?.superview ?? window.contentView,
               let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds)
         else { return }
         view.cacheDisplay(in: view.bounds, to: bitmap)

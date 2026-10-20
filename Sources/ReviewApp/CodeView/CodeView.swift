@@ -14,10 +14,12 @@ struct CodeView: NSViewRepresentable {
     /// A place to scroll to once this document shows; applied once per id.
     let reveal: Reveal?
     let draftRows: [Int: UUID]
+    let threadRows: [Int: String]
     let onSelectionChange: (Cursor, ClosedRange<Int>?) -> Void
     let onNavigate: (NavigationAction, Cursor) -> Void
     let onAddComment: () -> Void
     let onSelectDraft: (UUID) -> Void
+    let onSelectThread: (String) -> Void
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var shownID: String?
@@ -67,6 +69,7 @@ struct CodeView: NSViewRepresentable {
         }
         textView.onAddComment = onAddComment
         (scrollView.verticalRulerView as? LineNumberGutter)?.onSelectDraft = onSelectDraft
+        (scrollView.verticalRulerView as? LineNumberGutter)?.onSelectThread = onSelectThread
 
         if coordinator.shownID != documentID {
             coordinator.shownID = documentID
@@ -75,6 +78,7 @@ struct CodeView: NSViewRepresentable {
             (scrollView.verticalRulerView as? LineNumberGutter)?.update(maxLineNumber: document.maxLineNumber)
         }
         if textView.draftRows != draftRows { textView.draftRows = draftRows }
+        if textView.threadRows != threadRows { textView.threadRows = threadRows }
 
         if let reveal, reveal.id != coordinator.revealedID, let row = document.row(forNewLine: reveal.line) {
             coordinator.revealedID = reveal.id

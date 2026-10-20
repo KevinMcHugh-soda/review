@@ -44,6 +44,14 @@ struct DraftCard: View {
             }
             .focused($focusedDraft, equals: draft.id)
 
+            Toggle("Keep private", isOn: Binding(
+                get: { draft.isExcludedFromReview },
+                set: { session.setExcluded($0, draft.id) }
+            ))
+            .toggleStyle(.checkbox)
+            .font(Theme.Fonts.meta)
+            .help("Leave this out when the review is posted")
+
             if draft.conversation.isEmpty, session.asks[draft.id] == nil {
                 Button("Ask Claude", systemImage: "sparkle") { session.ask(about: draft.id) }
                     .help(isSelected ? "Ask Claude about this (⌘↩)" : "Ask Claude about this")

@@ -57,6 +57,12 @@ enum Theme {
     static let badgePaddingHorizontal: CGFloat = 6
     static let badgePaddingVertical: CGFloat = 1
 
+    // MARK: Post sheet
+    static let postSheetWidth: CGFloat = 620
+    static let postSheetHeight: CGFloat = 640
+    static let summaryHeight: CGFloat = 90
+    static let sheetPadding: CGFloat = 20
+
     // MARK: Panes
     /// Standard horizontal inset for pane content.
     static let gutter: CGFloat = 12
@@ -115,6 +121,7 @@ enum Theme {
         /// The leftmost gutter column, where a draft's bubble sits.
         static let draftMarkWidth: CGFloat = 16
         static let draftMark = NSColor.controlAccentColor
+        static let threadMark = NSColor.secondaryLabelColor
         static let gutterColumnGap: CGFloat = 6
 
         static let text = NSColor.textColor

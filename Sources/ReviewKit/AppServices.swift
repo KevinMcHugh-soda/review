@@ -47,4 +47,10 @@ public struct AppServices: Sendable {
     }
 
     public var notes: NotesStore { NotesStore(root: CheckoutStore.defaultRoot) }
+
+    /// Nil when gh is missing.
+    public var publisher: ReviewPublisher? {
+        guard let gh = environment.locate(Tool.gh.executableName) else { return nil }
+        return ReviewPublisher(github: GitHubClient(gh: gh, environment: environment.variables))
+    }
 }

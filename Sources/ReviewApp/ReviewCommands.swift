@@ -49,6 +49,9 @@ struct ReviewCommands: Commands {
             Button("Ask Claude About All Drafts") { session?.askAboutAll() }
                 .keyboardShortcut(.return, modifiers: [.command, .option])
                 .disabled(session?.notes.drafts.isEmpty != false || session?.canAsk != true)
+            Button("Post Review…") { session?.isPostSheetShown = true }
+                .keyboardShortcut("p", modifiers: [.command, .shift])
+                .disabled(session?.review == nil || session?.publisher == nil)
             Divider()
             Button(session?.isInspectorShown == true ? "Hide Drafts" : "Show Drafts") {
                 session?.isInspectorShown.toggle()

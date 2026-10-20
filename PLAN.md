@@ -56,7 +56,7 @@ make cli && ./.build/debug/review doctor
    callers; back/forward; after-merge via `git merge-tree`
 4. ✅ **Draft and ask** — draft comments on lines and ranges, stored locally;
    ask Claude about one draft or all of them, read-only, with follow-ups
-5. **Post** — existing review threads shown inline; drafts become a pending
-   GitHub review; submit as comment, approve or request changes
+5. ✅ **Post** — existing review threads shown inline; drafts become one
+   GitHub review — comment, approve, request changes, or left pending
 6. **Daily driver** — review-requested inbox, viewed-file tracking,
    keyboard-driven file and hunk navigation, `review open <url>`

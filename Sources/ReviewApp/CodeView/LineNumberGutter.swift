@@ -7,7 +7,12 @@ final class LineNumberGutter: NSRulerView {
     private var digits = 1
     /// Clicking a row's draft bubble.
     var onSelectDraft: ((UUID) -> Void)?
+    /// Clicking a row's GitHub thread mark.
+    var onSelectThread: ((String) -> Void)?
     private static let bubble = NSImage(systemSymbolName: "text.bubble.fill", accessibilityDescription: "Draft comment")
+    private static let thread = NSImage(
+        systemSymbolName: "bubble.left.and.bubble.right.fill", accessibilityDescription: "Comment on GitHub"
+    )
 
     init(textView: CodeTextView) {
         super.init(scrollView: textView.enclosingScrollView, orientation: .verticalRuler)
@@ -58,10 +63,15 @@ final class LineNumberGutter: NSRulerView {
                 band.setFill()
                 NSRect(x: 0, y: y, width: bounds.width - 1, height: height).fill()
             }
-            if textView.draftRows[row] != nil, let bubble = Self.bubble {
+            // A draft of yours outranks a thread on GitHub for the one slot.
+            let badge: (NSImage?, NSColor)? =
+                if textView.draftRows[row] != nil { (Self.bubble, Theme.Code.draftMark) }
+                else if textView.threadRows[row] != nil { (Self.thread, Theme.Code.threadMark) }
+                else { nil }
+            if let (image, color) = badge, let image {
                 let size = min(Theme.Code.draftMarkWidth - 4, height - 2)
                 let rect = NSRect(x: 3, y: y + (height - size) / 2, width: size, height: size)
-                bubble.withSymbolConfiguration(.init(paletteColors: [Theme.Code.draftMark]))?
+                image.withSymbolConfiguration(.init(paletteColors: [color]))?
                     .draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             }
             draw(item.oldLine, rightEdge: oldRight, y: top, attributes: numberAttributes)
@@ -87,8 +97,11 @@ final class LineNumberGutter: NSRulerView {
             let y = convert(NSPoint(x: 0, y: lineRect.minY), from: textView).y
             return point.y >= y && point.y < y + lineRect.height
         }
-        if let hit, let draft = textView.draftRows[hit.row] {
+        guard let hit else { return }
+        if let draft = textView.draftRows[hit.row] {
             onSelectDraft?(draft)
+        } else if let thread = textView.threadRows[hit.row] {
+            onSelectThread?(thread)
         }
     }
 

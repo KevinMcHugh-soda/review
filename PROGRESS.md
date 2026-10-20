@@ -177,10 +177,54 @@ only through the CLI (`--resume` keeps context; the session id is stable).
 No re-anchoring when the PR moves (drafts are tagged "older commit"). The
 session's draft logic has no unit tests.
 
-## Next: milestone 5 — post
+## Milestone 5 — post ✅ (not yet posted for real)
 
-Existing review threads inline; drafts become a pending GitHub review, with
-the line-mapping fallbacks in plans/github.md shown before anything is sent.
+Existing review threads show in the gutter and the inspector; drafts become
+one GitHub review. The Post sheet (⇧⌘P) shows where every draft will land and
+why before anything is sent. See plans/github.md for the rules.
+
+**Verified:**
+
+- `review threads spf13/cobra#2356` lists its two resolved, outdated threads
+  with every comment — the GraphQL path against real data.
+- `review post spf13/cobra#2397 --dry-run` with five drafts, one of each kind:
+  a range in the diff → RIGHT 70–75 with `start_line`; a draft from an older
+  commit → re-anchored from line 3 to 73 by its quoted line; an empty draft →
+  skipped; lines outside the diff and a file outside the PR → summary sections
+  with permalinks at the exact commit and the code quoted.
+- The Post sheet, rendered: the same five placements, and Post enabled
+  because preflight (viewer login, own-PR check, pending-review check) ran
+  against GitHub and passed.
+
+**Not verified: an actual post.** No review has been sent — the PRs used in
+development are other people's, and posting is public. The first real one
+should be on a throwaway PR in a repository you own.
+
+**What exists:**
+
+- `ReviewCore`: `ReviewThread`, `ThreadComment`, `ReviewEvent`; drafts gain
+  `isExcludedFromReview` and `posted`, decoded so older notes files still load
+- `ReviewGitHub`: `viewerLogin`, `reviewThreads` (GraphQL, paginated),
+  `pendingReviewURL`, `createReview`
+- `ReviewKit`: `ReviewPlanner` (placements, re-anchoring, the summary, the
+  payload), `ReviewPublisher` (preflight, plan, post, threads)
+- CLI: `review threads <pr>`, `review post <pr> [--dry-run] [--event …]
+  [--summary …] [--yes]`
+- App: Post sheet, Keep private, a collapsed Posted section, an "On GitHub"
+  section of thread cards, thread marks in the gutter; snapshots now capture
+  an attached sheet as `<name>-sheet.png`
+
+**Tests: 89** (+1 opt-in live): 12 for placement rules, thread decoding
+across pages and deleted authors.
+
+**Not yet:** replying to or resolving existing threads; adding drafts to an
+existing pending review (GitHub's REST API cannot, GraphQL's
+`addPullRequestReviewThread` could).
+
+## Next: milestone 6 — daily driver
+
+Review-requested inbox, viewed-file tracking, keyboard file and hunk
+navigation, `review open <url>`.
 
 ## Things that bit us
 
@@ -256,3 +300,17 @@ source of CLAUDE.md files, and it drops OAuth.
 **Captured CLI output carries personal data.** The `system/init` line lists
 plugins, paths and account details, and `input_json_delta` fragments spell
 out paths piecewise. The fixtures were cut down before they were committed.
+
+**GitHub rejects a whole review for one bad line.** A line comment on a line
+outside the diff fails the entire `POST …/reviews` with 422. Everything is
+placed by `ReviewPlanner` against the diff before sending, and what cannot be
+a line comment goes into the summary.
+
+**File-level comments cannot join a review.** `subject_type: "file"` exists
+only on the single-comment endpoint, which posts at once as its own review.
+
+**`gh api --slurp` and `--jq` are mutually exclusive.** Decode the slurped
+pages yourself.
+
+**A sheet is its own window.** Snapshotting the main window shows it dimmed
+with nothing on top; `writeSnapshot` now also writes the attached sheet.

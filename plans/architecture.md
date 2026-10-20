@@ -23,18 +23,19 @@ target is noise.
 
 ```
 ReviewCore       PullRequestReference, PullRequest, Side, CodeLocation,
-                 DraftComment/CommentAnchor/ReviewNotes. No I/O.
+                 DraftComment/CommentAnchor/ReviewNotes, ReviewThread,
+                 ReviewEvent. No I/O.
 ReviewProcess    Subprocess, ToolEnvironment. The only target that spawns.
   ReviewDiff     FileDiff/Hunk/DiffLine and UnifiedDiffParser.             ✅ M2
   ReviewGit      GitClient (pinned diff options), CheckoutStore clones.    ✅ M2
-  ReviewGitHub   gh api: PR metadata; later review threads, posting.       ✅ M2, M5
+  ReviewGitHub   gh api: PR metadata, review threads (GraphQL), posting.  ✅ M2, M5
   ReviewSyntax   tree-sitter highlighting, vendored queries.               ✅ M2
   ReviewLSP      JSON-RPC over stdio; LanguageServer; ServerCommand picks
                  gopls or a TypeScript server.                             ✅ M3
   ReviewClaude   claude -p, read-only, stream-json; ClaudeStreamParser.   ✅ M4
     ReviewKit    ReviewLoader, LoadedReview, CodeDocument (the viewer's
                  rows), Navigator, ReviewAssistant + ReviewPrompts,
-                 NotesStore, Doctor. The facade both frontends consume.
+                 NotesStore, ReviewPlanner + ReviewPublisher, Doctor.
       ReviewApp  SwiftUI views, @Observable models, the NSTextView wrapper.
       ReviewCLI  ArgumentParser commands. Product name: `review`.
 ```

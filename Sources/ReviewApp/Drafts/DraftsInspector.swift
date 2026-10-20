@@ -11,7 +11,7 @@ struct DraftsInspector: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Theme.spacing) {
-                    if session.notes.drafts.isEmpty {
+                    if session.unpostedDrafts.isEmpty {
                         ContentUnavailableView(
                             "No Drafts",
                             systemImage: "text.bubble",
@@ -20,13 +20,42 @@ struct DraftsInspector: View {
                         .padding(.top, Theme.readingTopInset)
                     } else {
                         OverviewSection(session: session)
-                        ForEach(session.sortedDrafts) { draft in
+                        ForEach(session.unpostedDrafts) { draft in
                             DraftCard(draft: draft, session: session, focusedDraft: $focusedDraft)
                                 .id(draft.id)
                         }
                     }
+                    if !session.threads.isEmpty || session.threadsError != nil {
+                        DisclosureGroup {
+                            if let error = session.threadsError {
+                                Text(error).font(Theme.Fonts.meta).foregroundStyle(.secondary)
+                            }
+                            ForEach(session.threads) { thread in
+                                ThreadCard(thread: thread, session: session)
+                                    .id(thread.id)
+                            }
+                        } label: {
+                            Text("On GitHub · \(session.threads.count)")
+                                .font(Theme.Fonts.panelTitle)
+                        }
+                        .padding(.top, Theme.spacing)
+                    }
+                    if !session.postedDrafts.isEmpty {
+                        DisclosureGroup {
+                            ForEach(session.postedDrafts) { draft in
+                                PostedDraftRow(draft: draft, session: session)
+                            }
+                        } label: {
+                            Text("Posted · \(session.postedDrafts.count)")
+                                .font(Theme.Fonts.panelTitle)
+                        }
+                    }
                 }
                 .padding(Theme.gutter)
+            }
+            .onChange(of: session.selectedThreadID) { _, id in
+                guard let id else { return }
+                withAnimation { proxy.scrollTo(id, anchor: .top) }
             }
             .onChange(of: session.selectedDraftID) { _, id in
                 guard let id else { return }
@@ -55,7 +84,7 @@ private struct OverviewSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacing) {
             HStack {
-                Text("^[\(session.notes.drafts.count) draft](inflect: true)")
+                Text("^[\(session.unpostedDrafts.count) draft](inflect: true)")
                     .font(Theme.Fonts.panelTitle)
                 Spacer()
                 if session.notes.overview.isEmpty, session.asks[overviewID] == nil {
@@ -63,6 +92,9 @@ private struct OverviewSection: View {
                         .help("Ask Claude about every draft at once (⌥⌘↩)")
                         .disabled(!session.canAsk)
                 }
+                Button("Post…", systemImage: "paperplane") { session.isPostSheetShown = true }
+                    .help("Post your drafts as a GitHub review (⇧⌘P)")
+                    .disabled(session.publisher == nil)
             }
             if !session.notes.overview.isEmpty || session.asks[overviewID] != nil {
                 ConversationView(

@@ -46,6 +46,7 @@ final class AppModel {
         if let comment = options.comment {
             await selected.scriptedComment(lines: comment.lines, note: comment.note, ask: comment.ask)
         }
+        if options.opensPostSheet { selected.isPostSheetShown = true }
         if let snapshotPath = options.snapshotPath {
             // Let the document build and the text view lay out.
             try? await Task.sleep(for: .seconds(2))

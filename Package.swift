@@ -83,6 +83,7 @@ let package = Package(
         .testTarget(name: "ReviewProcessTests", dependencies: ["ReviewProcess"]),
         .testTarget(name: "ReviewDiffTests", dependencies: ["ReviewDiff"]),
         .testTarget(name: "ReviewSyntaxTests", dependencies: ["ReviewSyntax"]),
+        .testTarget(name: "ReviewGitHubTests", dependencies: ["ReviewGitHub", "ReviewCore"]),
         // Includes tests against the real gopls and typescript-language-server,
         // skipped when either is not installed.
         .testTarget(name: "ReviewLSPTests", dependencies: ["ReviewLSP", "ReviewProcess"]),
