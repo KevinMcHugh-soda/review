@@ -466,3 +466,10 @@ file list following the top row, it jumped back. Headers reveal to the top.
 `tree-sitter-yaml` 0.7.1+ guards `scanner.c` with a relative `fileExists`,
 which is always false under SwiftPM; the build links fine until something
 calls the language. Pinned to 0.7.0, whose manifest lists it.
+
+**A release tag can lack its generated parser.** tree-sitter-sql's tags carry
+only `scanner.c`; `parser.c` lives on `gh-pages`. Pinned there by revision.
+
+**Neovim queries use Lua patterns in `#match?`.** `%d` matched nothing as a
+regular expression, so SQL numbers came out as strings until the vendor script
+rewrote it.

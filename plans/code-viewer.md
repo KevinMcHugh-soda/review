@@ -172,4 +172,11 @@ relative path, which SwiftPM does not evaluate from the package's directory,
 so the scanner is silently dropped and linking fails on
 `tree_sitter_yaml_external_scanner_*`.
 
+**SQL** from DerekStride's `tree-sitter-sql`, pinned to a commit on its
+`gh-pages` branch (e038788e): its release tags ship `scanner.c` without the
+generated `parser.c`, so a tag does not build. Its highlight query is written
+for Neovim, whose `#match?` takes Lua patterns, so `scripts/vendor-queries.swift`
+rewrites `%d` to `[0-9]` (stated in the generated file); without that, numbers
+colour as strings, which a test catches. `.sql`, `.psql`, `.pgsql`.
+
 LSP semantic tokens may be layered on top later, once a server is warm.

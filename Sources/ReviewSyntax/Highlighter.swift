@@ -2,6 +2,7 @@ import Foundation
 import SwiftTreeSitter
 import TreeSitterGo
 import TreeSitterJSON
+import TreeSitterSql
 import TreeSitterTSX
 import TreeSitterTypeScript
 import TreeSitterYAML
@@ -69,6 +70,7 @@ struct CompiledLanguage: Sendable {
         case .tsx: try tsx.get()
         case .json: try json.get()
         case .yaml: try yaml.get()
+        case .sql: try sql.get()
         }
     }
 
@@ -116,6 +118,16 @@ struct CompiledLanguage: Sendable {
         try Self(
             language: Language(language: tree_sitter_yaml()),
             source: VendoredQueries.yamlHighlights,
+            precedence: .lastPatternWins
+        )
+    }
+
+    // SQL's lists `(literal) @string`, then refines literals into numbers:
+    // last match wins.
+    private static let sql = Result {
+        try Self(
+            language: Language(language: tree_sitter_sql()),
+            source: VendoredQueries.sqlHighlights,
             precedence: .lastPatternWins
         )
     }
