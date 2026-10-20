@@ -41,18 +41,61 @@ environment: from /bin/zsh -l -i
   with a popover of details
 - CLI: `review doctor`, `review version`
 
-## Next: milestone 2 — read a pull request
+## Milestone 2 — read a pull request ✅
 
-Decisions to make first (see the plans):
+Paste a PR; the app asks GitHub about it, clones or updates a blobless bare
+clone, diffs merge base → head, and shows the changed files and a
+highlighted code viewer with Diff (default) and File modes.
 
-1. Highlighting — tree-sitter (a third-party dependency, needs a yes) or LSP
-   semantic tokens only. code-viewer.md.
-2. Default mode — the diff, or after-merge with changes marked.
-   checkout-and-diff.md.
+**Verified against real PRs**, in the app (rendered with `REVIEW_SNAPSHOT`)
+and headless with `review show`:
 
-Then, in order: `ReviewGitHub` PR metadata → `ReviewGit` managed clone, fetch
-and worktree → `ReviewDiff` unified-diff parser and line mapping (heavily
-tested) → the NSTextView viewer → the file list.
+```
+spf13/cobra#2397  Go   3 files   cold 1.8 s (clone 804K), warm 1.3 s
+sindresorhus/ky#881  TypeScript   5 files   1.7 s
+```
+
+Go and TypeScript highlight correctly, including method calls, JSDoc blocks
+and multi-hunk files; bands, gutter numbers and +/− marks line up. Checked in
+dark mode only.
+
+**What exists:**
+
+- `ReviewGitHub.GitHubClient` — PR metadata through `gh api`
+- `ReviewGit.GitClient` — git with credentials from gh, no prompts, and
+  every diff-format option pinned; `CheckoutStore` — clones staged then
+  renamed into place, fetches into `refs/review/…` from `origin`
+- `ReviewDiff.UnifiedDiffParser` — renames, binary, mode-only, added/deleted,
+  quoted and spaced paths, CRLF, missing newlines, header lookalikes in
+  content
+- `ReviewSyntax` — tree-sitter for Go, TypeScript, TSX/JS; vendored queries
+  (`scripts/vendor-queries.swift`), per-query precedence, spans cut per line
+- `ReviewKit.CodeDocument` — the viewer's rows; each side highlighted whole,
+  then sliced onto diff rows; whole-file mode maps every unchanged head line
+  to its merge-base line
+- App: three columns (PRs, files, code); TextKit 1 `CodeTextView` with
+  full-width bands; `LineNumberGutter` with base/head numbers and +/− marks;
+  View menu: ⌘1 Diff, ⌘2 Whole File, ⌥⌘↓/↑ next/previous file
+- CLI: `review show <pr> [path] [--file] [--spans]`
+- Dev: `--open`, `--file`, `--mode file` launch options and `REVIEW_SNAPSHOT`
+
+**Tests: 45**, including an end-to-end suite against a fixture repository
+whose global git config sets `diff.noprefix`, `diff.mnemonicPrefix`,
+`diff.renames=false`, `diff.context=10`, `diff.external`, `color.diff=always`
+and `core.quotePath`. It asserts every diff line's number names that exact
+line in its side's file. Proven non-vacuous: removing the prefix pins fails
+it.
+
+**Not yet:** expanding context between hunks, split (side-by-side) diff, a
+file tree for large PRs, light-mode visual check, after-merge via
+`git merge-tree` (M3, with worktrees).
+
+## Next: milestone 3 — navigate
+
+Worktrees for head (and merge, when the base has moved), then `ReviewLSP`:
+the JSON-RPC client, gopls and typescript-language-server per worktree,
+⌘-click to definition, find references and incoming calls in a panel below
+the code. See plans/lsp.md.
 
 ## Things that bit us
 
@@ -67,3 +110,29 @@ the name. Same root cause as the `ReviewApp`/`review` binary naming.
 
 **`Mutex` cannot be captured by an escaping closure.** It is non-copyable.
 The subprocess watchdog wraps it in a small `final class … : Sendable`.
+
+**tree-sitter queries disagree about precedence.** Go's lists specific
+patterns first and expects the first match to win; JavaScript's opens with
+`(identifier) @variable` and expects the last to win. Applying one rule to
+both coloured `cmd.CommandPath()` as a property. Caught from `review show
+--spans` on a real PR; each query is now tagged with its convention.
+
+**The JSX query does not compile against the TypeScript grammar.** Its node
+types exist only in TSX. Verified, which is why `.ts` and `.tsx` compile
+different query concatenations.
+
+**SwiftUI macros do not expand with Command Line Tools.** `@Entry` fails
+with "plugin for module 'SwiftUIMacros' not found". Hand-written keys work.
+
+**A partial clone only filters fetches from its promisor remote.** Fetching
+by URL instead of `origin` would download every blob in the new history.
+
+**`git add -A` re-reads the file mode from disk.** The fixture's
+`update-index --chmod=+x` was silently undone by the `add` after it; the
+mode-change assertion caught it.
+
+**A navigation title set in the detail column never reached the window.**
+Set it on the `NavigationSplitView`.
+
+**Creating sessions inside a view body mutates observed state mid-update.**
+Sessions are made when a PR is opened; lookups are read-only.

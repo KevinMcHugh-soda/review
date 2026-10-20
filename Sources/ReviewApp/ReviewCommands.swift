@@ -1,0 +1,40 @@
+import ReviewKit
+import SwiftUI
+
+// Written out by hand: `@Entry` is a macro whose plugin ships with Xcode, not
+// the Command Line Tools, so it does not expand on this machine.
+private struct ReviewSessionKey: FocusedValueKey {
+    typealias Value = ReviewSession
+}
+
+extension FocusedValues {
+    /// The pull request in the key window, for menu commands.
+    var reviewSession: ReviewSession? {
+        get { self[ReviewSessionKey.self] }
+        set { self[ReviewSessionKey.self] = newValue }
+    }
+}
+
+/// The View menu's review commands. Each acts on the key window's session.
+struct ReviewCommands: Commands {
+    @FocusedValue(\.reviewSession) private var session
+
+    var body: some Commands {
+        CommandGroup(before: .toolbar) {
+            Button("Show Diff") { session?.mode = .diff }
+                .keyboardShortcut("1", modifiers: .command)
+                .disabled(session?.selectedFile == nil)
+            Button("Show Whole File") { session?.mode = .file }
+                .keyboardShortcut("2", modifiers: .command)
+                .disabled(session?.selectedFile == nil)
+            Divider()
+            Button("Next File") { session?.selectFile(offset: 1) }
+                .keyboardShortcut(.downArrow, modifiers: [.command, .option])
+                .disabled(session?.review == nil)
+            Button("Previous File") { session?.selectFile(offset: -1) }
+                .keyboardShortcut(.upArrow, modifiers: [.command, .option])
+                .disabled(session?.review == nil)
+            Divider()
+        }
+    }
+}

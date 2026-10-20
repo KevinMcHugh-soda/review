@@ -27,6 +27,9 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.8.2"),
+        .package(url: "https://github.com/ChimeHQ/SwiftTreeSitter", from: "0.25.0"),
+        .package(url: "https://github.com/tree-sitter/tree-sitter-go", from: "0.25.0"),
+        .package(url: "https://github.com/tree-sitter/tree-sitter-typescript", from: "0.23.2"),
     ],
     targets: [
         // Pure logic.
@@ -34,19 +37,37 @@ let package = Package(
         // Child processes: git, gh, the language servers and claude all run
         // as subprocesses, with the user's login-shell environment.
         .target(name: "ReviewProcess"),
+        .target(name: "ReviewDiff", dependencies: ["ReviewCore"]),
+        .target(name: "ReviewGit", dependencies: ["ReviewCore", "ReviewProcess"]),
+        .target(name: "ReviewGitHub", dependencies: ["ReviewCore", "ReviewProcess"]),
+        // Highlighting. The queries are vendored as Swift source; see
+        // plans/code-viewer.md for why not the grammars' resource bundles.
+        .target(
+            name: "ReviewSyntax",
+            dependencies: [
+                .product(name: "SwiftTreeSitter", package: "SwiftTreeSitter"),
+                .product(name: "TreeSitterGo", package: "tree-sitter-go"),
+                .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
+            ]
+        ),
         // The facade both frontends consume. Still no SwiftUI.
-        .target(name: "ReviewKit", dependencies: ["ReviewCore", "ReviewProcess"]),
+        .target(
+            name: "ReviewKit",
+            dependencies: [
+                "ReviewCore", "ReviewProcess", "ReviewDiff", "ReviewGit", "ReviewGitHub", "ReviewSyntax",
+            ]
+        ),
 
         // Frontends.
         .executableTarget(
             name: "ReviewApp",
-            dependencies: ["ReviewKit", "ReviewCore", "ReviewProcess"],
+            dependencies: ["ReviewKit", "ReviewCore", "ReviewProcess", "ReviewDiff", "ReviewSyntax"],
             path: "Sources/ReviewApp"
         ),
         .executableTarget(
             name: "review",
             dependencies: [
-                "ReviewKit", "ReviewCore", "ReviewProcess",
+                "ReviewKit", "ReviewCore", "ReviewProcess", "ReviewDiff", "ReviewSyntax",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
             path: "Sources/ReviewCLI"
@@ -55,6 +76,14 @@ let package = Package(
         // Tests.
         .testTarget(name: "ReviewCoreTests", dependencies: ["ReviewCore"]),
         .testTarget(name: "ReviewProcessTests", dependencies: ["ReviewProcess"]),
+        .testTarget(name: "ReviewDiffTests", dependencies: ["ReviewDiff"]),
+        .testTarget(name: "ReviewSyntaxTests", dependencies: ["ReviewSyntax"]),
+        // Real git against throwaway local repositories, end to end through
+        // clone, fetch, diff, parse and the viewer's rows.
+        .testTarget(
+            name: "ReviewKitTests",
+            dependencies: ["ReviewKit", "ReviewCore", "ReviewDiff", "ReviewGit", "ReviewProcess", "ReviewSyntax"]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

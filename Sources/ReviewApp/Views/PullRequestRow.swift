@@ -1,24 +1,24 @@
 import ReviewCore
 import SwiftUI
 
-/// One opened pull request in the sidebar. Title and author arrive in M2,
-/// once the PR is fetched; until then the number and repository stand in.
+/// One opened pull request in the sidebar: its title once loaded, the number
+/// and repository until then.
 struct PullRequestRow: View {
     let reference: PullRequestReference
+    let session: ReviewSession?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("#\(reference.number)")
+            Text(session?.review?.pullRequest.title ?? "#\(reference.number)")
                 .font(Theme.Fonts.rowTitle)
                 .lineLimit(1)
-            Text(reference.repositorySlug)
+                .truncationMode(.tail)
+            Text(reference.description)
                 .font(Theme.Fonts.meta)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .contextMenu {
-            Link("Open on GitHub", destination: reference.webURL)
-        }
+        .help(session?.review?.pullRequest.title ?? reference.description)
     }
 }

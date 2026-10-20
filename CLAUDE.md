@@ -34,6 +34,9 @@ do. `README.md` has the commands to fetch them.
   in every target — not just views. The toolchain here is Swift 6.1, which does not support
   raw-identifier test names: write `@Test("Sentence") func sentence()` instead.
 
+* SwiftUI's macros (`@Entry`, `#Preview`) do not expand here — their plugins ship with Xcode, not
+  the Command Line Tools. Write `EnvironmentKey`/`FocusedValueKey` conformances by hand.
+
 `SWIFTUI-RULES.md` in the repo root is the house style and takes precedence where it conflicts.
 
 Ask before adding a third-party dependency.
@@ -47,6 +50,11 @@ not exist here, so never reach for it. `swift build` compiles; `build.sh` bundle
 * `make test` — `swift test`; covers the logic targets without launching a GUI
 * `make run` — build, bundle, sign, launch
 * `make cli && ./.build/debug/review doctor` — confirms every external tool is found
+* `./.build/debug/review show <pr> [path]` — loads a PR exactly as the app does, headless
+* **Look at UI changes.** `screencapture` from an agent shell sees only the desktop (no Screen
+  Recording permission), so the app renders its own window instead:
+  `REVIEW_SNAPSHOT=/path/out.png build/Review.app/Contents/MacOS/ReviewApp --open <pr> --file <path> [--mode file]`
+  writes a PNG once loading settles and quits. See `LaunchOptions.swift`.
 * `SIGN_IDENTITY` defaults to `review-dev`, a self-signed cert created by
   `scripts/make-signing-cert.sh`. Optional: ad-hoc signing works, but changes the cdhash every
   build, so macOS treats each build as a different program and re-asks for any permission it

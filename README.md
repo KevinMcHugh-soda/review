@@ -26,6 +26,12 @@ make run        # build, bundle, sign, launch
 make cli        # the companion `review` command-line tool
 ```
 
+```sh
+review show <pr>                 # fetch a PR and list its files
+review show <pr> <path> [--file] [--spans]
+review doctor                    # are git, gh, the servers and claude found?
+```
+
 `review doctor` checks that every tool is installed and reachable:
 
 ```sh
@@ -59,4 +65,9 @@ mkdir -p .claude/skills/swift \
   && curl -sSL https://swift.airbnb.tech/SKILL.md -o .claude/skills/swift/SKILL.md
 ```
 
-Dependencies: [swift-argument-parser](https://github.com/apple/swift-argument-parser).
+Dependencies: [swift-argument-parser](https://github.com/apple/swift-argument-parser),
+[SwiftTreeSitter](https://github.com/ChimeHQ/SwiftTreeSitter),
+[tree-sitter-go](https://github.com/tree-sitter/tree-sitter-go) and
+[tree-sitter-typescript](https://github.com/tree-sitter/tree-sitter-typescript).
+The highlight queries are vendored from the grammar repositories (and
+tree-sitter-javascript); their MIT licences are in `ThirdPartyLicenses/`.

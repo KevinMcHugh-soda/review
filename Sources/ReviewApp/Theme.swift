@@ -1,3 +1,6 @@
+import AppKit
+import ReviewKit
+import ReviewSyntax
 import SwiftUI
 
 /// Centralized layout metrics + type system (SWIFTUI-RULES §2.4, §5.1).
@@ -26,6 +29,11 @@ enum Theme {
     /// Wide enough for an install command to sit on one line.
     static let toolPopoverWidth: CGFloat = 380
 
+    // MARK: Files column
+    static let filesMinWidth: CGFloat = 240
+    static let filesIdealWidth: CGFloat = 300
+    static let filesMaxWidth: CGFloat = 480
+
     // MARK: Panes
     /// Standard horizontal inset for pane content.
     static let gutter: CGFloat = 12
@@ -43,8 +51,79 @@ enum Theme {
         static let rowTitle = Font.body.weight(.medium)
         /// Metadata: repository names, counts, the footer line.
         static let meta = Font.caption
+        /// A file's +/− counts: tabular figures so a column of them aligns.
+        static let counts = Font.caption.monospacedDigit().weight(.medium)
         /// Source code. Monospaced because alignment and exact characters
         /// matter; the code viewer (M2) will take its size from here.
         static let code = Font.system(.body, design: .monospaced)
+    }
+
+    // MARK: Code
+
+    /// The code viewer's palette and metrics. AppKit types, because the
+    /// viewer is an NSTextView; every colour is a dynamic system colour, so
+    /// light and dark both come for free.
+    enum Code {
+        /// Monospaced at the body text style's size, so it tracks the
+        /// system's text size rather than a number picked here.
+        static var font: NSFont {
+            NSFont.monospacedSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .body).pointSize, weight: .regular)
+        }
+
+        static var gutterFont: NSFont {
+            NSFont.monospacedDigitSystemFont(ofSize: NSFont.preferredFont(forTextStyle: .callout).pointSize, weight: .regular)
+        }
+
+        /// Tabs render four columns wide — Go is tab-indented throughout.
+        static let tabWidth = 4
+        /// Extra leading between lines; diff bands cover it, so they stay
+        /// continuous.
+        static let lineSpacing: CGFloat = 2
+        static let textInset = NSSize(width: 6, height: 6)
+        static let gutterPadding: CGFloat = 8
+        static let gutterColumnGap: CGFloat = 6
+
+        static let text = NSColor.textColor
+        static let background = NSColor.textBackgroundColor
+
+        static func color(for kind: TokenKind) -> NSColor {
+            switch kind {
+            case .keyword: .systemPink
+            case .string: .systemRed
+            case .escape: .systemOrange
+            case .comment: .secondaryLabelColor
+            case .number, .constant: .systemPurple
+            case .type: .systemTeal
+            case .function: .systemBlue
+            case .property: .systemIndigo
+            case .parameter: .systemBrown
+            case .operator: .secondaryLabelColor
+            case .tag: .systemBlue
+            }
+        }
+
+        /// The full-width band behind a row. Nil for plain context.
+        static func band(for kind: CodeDocument.Row.Kind) -> NSColor? {
+            switch kind {
+            case .added: .systemGreen.withAlphaComponent(0.14)
+            case .removed: .systemRed.withAlphaComponent(0.14)
+            case .hunkHeader: .quaternaryLabelColor.withAlphaComponent(0.12)
+            case .context: nil
+            }
+        }
+
+        /// The gutter's +/− mark, so a change never relies on colour alone.
+        static func markColor(for kind: CodeDocument.Row.Kind) -> NSColor {
+            switch kind {
+            case .added: .systemGreen
+            case .removed: .systemRed
+            case .hunkHeader, .context: .tertiaryLabelColor
+            }
+        }
+
+        static let hunkHeaderText = NSColor.secondaryLabelColor
+        static let lineNumber = NSColor.tertiaryLabelColor
+        static let gutterBackground = NSColor.textBackgroundColor
+        static let gutterSeparator = NSColor.separatorColor
     }
 }

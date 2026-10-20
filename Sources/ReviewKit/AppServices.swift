@@ -1,9 +1,10 @@
 import Foundation
+import ReviewGit
+import ReviewGitHub
 import ReviewProcess
 
 /// The facade both frontends consume. Holds what every feature needs: the
-/// environment child processes run in. Grows a service per milestone —
-/// checkouts, GitHub, language servers, Claude, the store.
+/// environment child processes run in, and the clients built on it.
 public struct AppServices: Sendable {
     public static let version = "0.1.0"
 
@@ -20,4 +21,18 @@ public struct AppServices: Sendable {
     }
 
     public var doctor: Doctor { Doctor(environment: environment) }
+
+    /// Nil when git or gh is missing; `doctor` says which and how to fix it.
+    public var loader: ReviewLoader? {
+        guard
+            let gitPath = environment.locate(Tool.git.executableName),
+            let ghPath = environment.locate(Tool.gh.executableName)
+        else { return nil }
+        let git = GitClient(git: gitPath, gh: ghPath, environment: environment.variables)
+        return ReviewLoader(
+            github: GitHubClient(gh: ghPath, environment: environment.variables),
+            checkouts: CheckoutStore(root: CheckoutStore.defaultRoot, git: git),
+            git: git
+        )
+    }
 }

@@ -1,10 +1,11 @@
+import AppKit
 import Foundation
 import Observation
 import ReviewCore
 import ReviewKit
 
-/// Top-level app state. For now: the services, the tool check, and the pull
-/// requests the reviewer has opened.
+/// Top-level app state: the services, the tool check, and the pull requests
+/// the reviewer has opened.
 @Observable
 @MainActor
 final class AppModel {
@@ -15,13 +16,36 @@ final class AppModel {
     /// Opened pull requests, most recent first.
     private(set) var pullRequests: [PullRequestReference] = []
     var selection: PullRequestReference?
+    private var sessions: [PullRequestReference: ReviewSession] = [:]
+    private var startup: Task<Void, Never>?
 
     /// Asks the login shell for its environment, then checks the tools.
-    /// Called once from the window's `.task`.
+    /// Safe to call from several places at once: they all wait on one startup.
     func start() async {
-        guard services == nil else { return }
-        services = await AppServices.start()
-        await checkTools()
+        if startup == nil {
+            startup = Task {
+                services = await AppServices.start()
+                await checkTools()
+            }
+        }
+        await startup?.value
+    }
+
+    /// Startup plus whatever the launch options ask for.
+    func start(applying options: LaunchOptions) async {
+        await start()
+        guard let pullRequest = options.pullRequest, (try? open(pullRequest)) != nil, let selected = selectedSession else {
+            return
+        }
+        if options.wholeFile { selected.mode = .file }
+        if !selected.hasStarted { await load(selected) }
+        if let filePath = options.filePath { selected.selectedFilePath = filePath }
+        if let snapshotPath = options.snapshotPath {
+            // Let the document build and the text view lay out.
+            try? await Task.sleep(for: .seconds(2))
+            LaunchOptions.writeSnapshot(to: snapshotPath)
+            NSApplication.shared.terminate(nil)
+        }
     }
 
     func checkTools() async {
@@ -40,7 +64,35 @@ final class AppModel {
         let reference = try PullRequestReference(parsing: input)
         if !pullRequests.contains(reference) {
             pullRequests.insert(reference, at: 0)
+            sessions[reference] = ReviewSession(reference: reference)
         }
         selection = reference
+    }
+
+    func close(_ reference: PullRequestReference) {
+        pullRequests.removeAll { $0 == reference }
+        sessions[reference] = nil
+        if selection == reference { selection = pullRequests.first }
+    }
+
+    var selectedSession: ReviewSession? {
+        selection.flatMap(session)
+    }
+
+    /// Read-only: sessions are made by `open`, never while a view body is
+    /// being evaluated, which would mutate observed state mid-update.
+    func session(for reference: PullRequestReference) -> ReviewSession? {
+        sessions[reference]
+    }
+
+    /// Loads (or reloads) a session. Waits for `start` if the environment is
+    /// not ready yet, so a PR opened in the first half-second still loads.
+    func load(_ session: ReviewSession) async {
+        await start()
+        guard let loader = services?.loader else {
+            session.fail("git or gh is missing — see the tool status in the sidebar.")
+            return
+        }
+        await session.load(with: loader)
     }
 }

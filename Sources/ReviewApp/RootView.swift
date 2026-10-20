@@ -1,8 +1,8 @@
 import ReviewCore
 import SwiftUI
 
-/// The app shell: opened pull requests in the sidebar, the selected one in
-/// the detail column. The detail becomes file list + code viewer in M2.
+/// The app shell: opened pull requests, the selected one's changed files, and
+/// the code.
 struct RootView: View {
     @Environment(AppModel.self) private var model
 
@@ -11,7 +11,12 @@ struct RootView: View {
 
         NavigationSplitView {
             List(model.pullRequests, id: \.self, selection: $model.selection) { reference in
-                PullRequestRow(reference: reference)
+                PullRequestRow(reference: reference, session: model.session(for: reference))
+                    .contextMenu {
+                        Link("Open on GitHub", destination: reference.webURL)
+                        Divider()
+                        Button("Close") { model.close(reference) }
+                    }
             }
             .navigationSplitViewColumnWidth(
                 min: Theme.sidebarMinWidth,
@@ -33,9 +38,17 @@ struct RootView: View {
                     )
                 }
             }
-        } detail: {
-            if let selection = model.selection {
-                PullRequestPlaceholder(reference: selection)
+        } content: {
+            if let session = model.selectedSession {
+                FilesColumn(session: session)
+                    .navigationSplitViewColumnWidth(
+                        min: Theme.filesMinWidth,
+                        ideal: Theme.filesIdealWidth,
+                        max: Theme.filesMaxWidth
+                    )
+                    .task(id: session.reference) {
+                        if !session.hasStarted { await model.load(session) }
+                    }
             } else {
                 ContentUnavailableView(
                     "No Pull Request Selected",
@@ -43,7 +56,27 @@ struct RootView: View {
                     description: Text("Open a pull request to start reviewing.")
                 )
             }
+        } detail: {
+            if let session = model.selectedSession {
+                CodeDetail(session: session)
+            } else {
+                Color.clear
+            }
         }
-        .navigationTitle("Review")
+        // On the split view, not a column: a title set inside the detail
+        // column never reached the window's title bar.
+        .navigationTitle(title)
+        .navigationSubtitle(subtitle)
+        .focusedSceneValue(\.reviewSession, model.selectedSession)
+    }
+
+    private var title: String {
+        guard let session = model.selectedSession else { return "Review" }
+        return session.review?.pullRequest.title ?? session.reference.description
+    }
+
+    private var subtitle: String {
+        guard let session = model.selectedSession, let pullRequest = session.review?.pullRequest else { return "" }
+        return "\(session.reference) · \(pullRequest.author) · \(pullRequest.head.name) → \(pullRequest.base.name)"
     }
 }

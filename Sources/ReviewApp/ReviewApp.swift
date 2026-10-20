@@ -10,8 +10,9 @@ struct ReviewApp: App {
             RootView()
                 .environment(model)
                 .frame(minWidth: Theme.windowMinWidth, minHeight: Theme.windowMinHeight)
-                .task { await model.start() }
+                .task { await model.start(applying: .current) }
         }
         .defaultSize(width: Theme.windowDefaultWidth, height: Theme.windowDefaultHeight)
+        .commands { ReviewCommands() }
     }
 }

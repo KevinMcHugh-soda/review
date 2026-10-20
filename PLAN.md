@@ -42,16 +42,18 @@ make check                       # compile + layering gate
 make test                        # swift test, no GUI needed
 make run                         # build, bundle, sign, launch
 make cli && ./.build/debug/review doctor
+./.build/debug/review show spf13/cobra#2397 args.go --spans
 ```
 
 ## Milestones
 
 1. ✅ **Walking skeleton** — target graph, app shell, CLI, login-shell
    environment, tool doctor, signing
-2. **Read a pull request** — fetch with `gh`, managed clone and worktrees,
-   file list, code viewer, diff and after-merge modes, syntax highlighting
-3. **Navigate** — language servers per worktree; ⌘-click to definition and
-   type definition, find references, incoming calls, hover; back/forward
+2. ✅ **Read a pull request** — fetch with `gh`, managed blobless clone,
+   file list, code viewer, diff and whole-file modes, tree-sitter highlighting
+3. **Navigate** — worktrees and language servers per worktree; ⌘-click to
+   definition and type definition, find references, incoming calls, hover;
+   back/forward; after-merge via `git merge-tree`
 4. **Draft and ask** — draft comments on lines and ranges, stored locally;
    ask Claude about one draft or all of them, with follow-ups
 5. **Post** — existing review threads shown inline; drafts become a pending

@@ -5,7 +5,7 @@
 | Language | Server | Notes |
 |---|---|---|
 | Go | `gopls` | Already installed (`~/go/bin`). Call hierarchy, references, implementations all supported. |
-| TypeScript / TSX / JS | `typescript-language-server --stdio` | Wraps tsserver. Needs `typescript` resolvable — from the worktree's `node_modules`, or the global install alongside it. Not yet installed here: `npm install -g typescript-language-server typescript`. |
+| TypeScript / TSX / JS | `typescript-language-server --stdio` | Wraps tsserver. Needs `typescript` resolvable — from the worktree's `node_modules`, or the global install alongside it. |
 
 One server process per **(worktree, language)**. A PR that touches Go and
 TypeScript in a monorepo gets two; the after-merge worktree gets its own.

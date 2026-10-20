@@ -22,20 +22,25 @@ Targets are added by the milestone that needs them; an empty placeholder
 target is noise.
 
 ```
-ReviewCore       PullRequestReference; later FileChange, Hunk, DiffLine,
-                 Side, LineRange, SourceLocation, DraftComment. No I/O.
+ReviewCore       PullRequestReference, PullRequest, Side; later LineRange,
+                 SourceLocation, DraftComment. No I/O.
 ReviewProcess    Subprocess, ToolEnvironment. The only target that spawns.
-  ReviewDiff     Unified-diff parser; line ↔ (line, side) mapping.     (M2)
-  ReviewGit      Managed clones, fetching PR refs, worktrees.          (M2)
-  ReviewGitHub   gh api: PR metadata, review threads, posting.         (M2, M5)
-  ReviewSyntax   Highlight spans for Go and TypeScript.                (M2)
-  ReviewLSP      JSON-RPC over stdio; one server per worktree+language.(M3)
-  ReviewClaude   claude -p with stream-json; one session per thread.   (M4)
-  ReviewStore    GRDB: reviews, drafts, Claude transcripts.            (M4)
-    ReviewKit    The facade both frontends consume. Still no SwiftUI.
+  ReviewDiff     FileDiff/Hunk/DiffLine and UnifiedDiffParser.             ✅ M2
+  ReviewGit      GitClient (pinned diff options), CheckoutStore clones.    ✅ M2
+  ReviewGitHub   gh api: PR metadata; later review threads, posting.       ✅ M2, M5
+  ReviewSyntax   tree-sitter highlighting, vendored queries.               ✅ M2
+  ReviewLSP      JSON-RPC over stdio; one server per worktree+language.    (M3)
+  ReviewClaude   claude -p with stream-json; one session per thread.       (M4)
+  ReviewStore    GRDB: reviews, drafts, Claude transcripts.                (M4)
+    ReviewKit    ReviewLoader, LoadedReview, CodeDocument (the viewer's
+                 rows), Doctor. The facade both frontends consume.
       ReviewApp  SwiftUI views, @Observable models, the NSTextView wrapper.
       ReviewCLI  ArgumentParser commands. Product name: `review`.
 ```
+
+`ReviewKitTests` is the end-to-end suite: a fixture repository standing in
+for GitHub, cloned, fetched and diffed for real, under a global git config
+built to break every step.
 
 ## Naming: why the app binary is `ReviewApp`
 
@@ -81,8 +86,8 @@ Two kinds of child:
 ```
 ~/Library/Application Support/Review/
   repos/<owner>/<repo>.git           managed clone, shared by every PR in that repo
-  worktrees/<owner>/<repo>/<n>/head  the PR head, detached
-  worktrees/<owner>/<repo>/<n>/merge the after-merge tree, when base has moved
+  worktrees/<owner>/<repo>/<n>/head  the PR head, detached              (M3)
+  worktrees/<owner>/<repo>/<n>/merge the after-merge tree, when base has moved (M3)
   review.sqlite                      drafts, Claude transcripts, viewed files (M4)
 ```
 
