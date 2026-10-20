@@ -1,11 +1,13 @@
 import AppKit
 import Foundation
+import ReviewKit
 
 /// Launch-time options, for development and for scripting the app.
 ///
 /// - `--open <pr>` opens a pull request at launch.
 /// - `--file <path>` selects a changed file in it.
-/// - `--mode file` starts in whole-file mode.
+/// - `--mode diff|split|file` picks the view.
+/// - `--expand <gap>` expands a gap between hunks (repeatable).
 /// - `--navigate <action> --line <n> --column <c>` runs a navigation action
 ///   (`definition`, `references`, `callers`, …) at a head-side line and
 ///   UTF-16 column once the servers are ready.
@@ -13,6 +15,13 @@ import Foundation
 ///   head-side lines, and with `--ask` asks Claude and waits for the answer.
 /// - `--post-sheet` opens the Post Review sheet (it only plans; nothing is
 ///   sent without pressing Post).
+/// - `--hover <line>:<column>` shows the hover for the symbol at a head-side
+///   line and UTF-16 column, once the servers are ready.
+///
+/// Every option is a `--flag value` pair, or a flag alone at the end. AppKit
+/// reads `-key value` pairs from the command line as defaults and treats a
+/// value with no flag before it as a file to open — and a launch that opens a
+/// file creates no window. `--hover 73 62` did exactly that.
 /// - `REVIEW_SNAPSHOT=<png>` renders the key window to that file once loading
 ///   settles, then quits. The agent's terminal has no Screen Recording
 ///   permission, so `screencapture` sees only the desktop; drawing our own
@@ -21,10 +30,12 @@ import Foundation
 struct LaunchOptions {
     let pullRequest: String?
     let filePath: String?
-    let wholeFile: Bool
+    let mode: CodeDocument.Mode?
+    let expandedGaps: [Int]
     let navigation: (action: NavigationAction, line: Int, column: Int)?
     let comment: (lines: ClosedRange<Int>, note: String, ask: Bool)?
     let opensPostSheet: Bool
+    let hover: (line: Int, column: Int)?
     let snapshotPath: String?
 
     static let current = Self(
@@ -38,7 +49,9 @@ struct LaunchOptions {
         }
         pullRequest = value(after: "--open")
         filePath = value(after: "--file")
-        wholeFile = value(after: "--mode") == "file"
+        mode = value(after: "--mode").flatMap(CodeDocument.Mode.init(rawValue:))
+        expandedGaps = arguments.indices.filter { arguments[$0] == "--expand" && arguments.indices.contains($0 + 1) }
+            .compactMap { Int(arguments[$0 + 1]) }
         if let action = value(after: "--navigate").flatMap(NavigationAction.init(rawValue:)),
            let line = value(after: "--line").flatMap(Int.init)
         {
@@ -54,6 +67,8 @@ struct LaunchOptions {
             comment = nil
         }
         opensPostSheet = arguments.contains("--post-sheet")
+        let hoverParts = value(after: "--hover")?.split(separator: ":").compactMap { Int($0) } ?? []
+        hover = hoverParts.count == 2 ? (hoverParts[0], hoverParts[1]) : nil
         snapshotPath = environment["REVIEW_SNAPSHOT"]
     }
 
@@ -65,6 +80,10 @@ struct LaunchOptions {
         write(window, to: path)
         if let sheet = window.attachedSheet {
             write(sheet, to: (path as NSString).deletingPathExtension + "-sheet.png")
+        }
+        // Popovers are windows of their own as well.
+        for popover in NSApp.windows where popover.isVisible && String(describing: type(of: popover)).contains("Popover") {
+            write(popover, to: (path as NSString).deletingPathExtension + "-popover.png")
         }
     }
 

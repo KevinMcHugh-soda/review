@@ -17,6 +17,17 @@ final class CodeTextView: NSTextView {
     /// is in the text view's string.
     var onNavigate: ((NavigationAction, Int) -> Void)?
     var onAddComment: (() -> Void)?
+    /// Clicking a collapsed gap between hunks.
+    var onExpandGap: ((Int) -> Void)?
+    /// Asks what to show when the pointer rests on a symbol; nil for nothing.
+    /// Nil itself on a pane that has no navigation (the base side of a split).
+    var onHover: ((Int) async -> String?)?
+
+    private var hoverTask: Task<Void, Never>?
+    private var hoverPopover: NSPopover?
+    private var hoveredWord: NSRange?
+    private var underlinedWord: NSRange?
+    private var pointerTracking: NSTrackingArea?
     /// Rows covered by a draft, which the gutter marks.
     var draftRows: [Int: UUID] = [:] {
         didSet { enclosingScrollView?.verticalRulerView?.needsDisplay = true }
@@ -53,7 +64,12 @@ final class CodeTextView: NSTextView {
         return view
     }
 
-    func show(_ rows: [CodeDocument.Row], text: NSAttributedString) {
+    /// Replaces the text. With `keepingScroll`, the scroll position stays —
+    /// for the same file re-shown with a gap expanded, where everything above
+    /// the gap is where it was.
+    func show(_ rows: [CodeDocument.Row], text: NSAttributedString, keepingScroll: Bool = false) {
+        let origin = enclosingScrollView?.contentView.bounds.origin
+        dismissHover()
         self.rows = rows
         rowKinds = rows.map(\.kind)
         var starts: [Int] = []
@@ -65,8 +81,20 @@ final class CodeTextView: NSTextView {
         }
         rowStarts = starts
         textStorage?.setAttributedString(text)
-        setSelectedRange(NSRange(location: 0, length: 0))
-        scroll(.zero)
+        if keepingScroll, let origin, let clip = enclosingScrollView?.contentView {
+            // Lay out down to the old position first: with non-contiguous
+            // layout, unlaid lines have estimated heights, and the position
+            // would drift.
+            if let layoutManager, let textContainer {
+                let above = NSRect(x: 0, y: 0, width: clip.bounds.width, height: origin.y + clip.bounds.height)
+                layoutManager.ensureLayout(forBoundingRect: above, in: textContainer)
+            }
+            clip.scroll(to: origin)
+            enclosingScrollView?.reflectScrolledClipView(clip)
+        } else {
+            setSelectedRange(NSRange(location: 0, length: 0))
+            scroll(.zero)
+        }
         needsDisplay = true
     }
 
@@ -128,18 +156,147 @@ final class CodeTextView: NSTextView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        dismissHover()
+        let index = characterIndexForInsertion(at: convert(event.locationInWindow, from: nil))
         // ⌘-click jumps to the definition, as in every editor.
-        guard event.modifierFlags.contains(.command) else {
-            super.mouseDown(with: event)
+        if event.modifierFlags.contains(.command), onNavigate != nil {
+            setSelectedRange(NSRange(location: index, length: 0))
+            onNavigate?(.definition, index)
             return
         }
-        let index = characterIndexForInsertion(at: convert(event.locationInWindow, from: nil))
-        setSelectedRange(NSRange(location: index, length: 0))
-        onNavigate?(.definition, index)
+        // A click on a collapsed gap opens it.
+        if !rowStarts.isEmpty, let gap = rows[row(containing: index)].gap, rows[row(containing: index)].kind == .gap {
+            onExpandGap?(gap)
+            return
+        }
+        super.mouseDown(with: event)
+    }
+
+    // MARK: Pointer: hover and the ⌘ underline
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let pointerTracking { removeTrackingArea(pointerTracking) }
+        let area = NSTrackingArea(
+            rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+            owner: self, userInfo: nil
+        )
+        addTrackingArea(area)
+        pointerTracking = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        pointerMoved(to: event.locationInWindow, commandDown: event.modifierFlags.contains(.command))
+    }
+
+    override func flagsChanged(with event: NSEvent) {
+        super.flagsChanged(with: event)
+        guard let window else { return }
+        pointerMoved(to: window.mouseLocationOutsideOfEventStream, commandDown: event.modifierFlags.contains(.command))
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        setUnderline(nil)
+        hoverTask?.cancel()
+    }
+
+    override func keyDown(with event: NSEvent) {
+        dismissHover()
+        super.keyDown(with: event)
+    }
+
+    override func scrollWheel(with event: NSEvent) {
+        dismissHover()
+        super.scrollWheel(with: event)
+    }
+
+    /// The identifier under a point, if any: a word made of letters, digits
+    /// and underscores, on a row of code.
+    private func symbol(at point: NSPoint) -> NSRange? {
+        guard let layoutManager, let textContainer, let textStorage, textStorage.length > 0 else { return nil }
+        let local = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
+        var fraction: CGFloat = 0
+        let glyph = layoutManager.glyphIndex(for: local, in: textContainer, fractionOfDistanceThroughGlyph: &fraction)
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: textContainer)
+        // Past the end of a line, the nearest glyph is the last one; ignore it.
+        guard glyphRect.contains(local) else { return nil }
+        let index = layoutManager.characterIndexForGlyph(at: glyph)
+        guard !rowStarts.isEmpty, rows[row(containing: index)].isCode else { return nil }
+        let range = selectionRange(forProposedRange: NSRange(location: index, length: 0), granularity: .selectByWord)
+        guard range.length > 0 else { return nil }
+        let word = (textStorage.string as NSString).substring(with: range)
+        let identifier = word.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) || $0 == "_" }
+        return identifier ? range : nil
+    }
+
+    private func pointerMoved(to windowPoint: NSPoint, commandDown: Bool) {
+        let word = symbol(at: convert(windowPoint, from: nil))
+        // ⌘ held over a symbol: underline it and show it can be clicked.
+        let jumpable = commandDown && onNavigate != nil ? word : nil
+        setUnderline(jumpable)
+        if jumpable != nil { NSCursor.pointingHand.set() } else { NSCursor.iBeam.set() }
+
+        guard word != hoveredWord else { return }
+        hoveredWord = word
+        hoverTask?.cancel()
+        hoverPopover?.performClose(nil)
+        guard let word, let onHover else { return }
+        hoverTask = Task { [weak self] in
+            try? await Task.sleep(for: Theme.Code.hoverDelay)
+            guard !Task.isCancelled, let markdown = await onHover(word.location), !Task.isCancelled else { return }
+            self?.showHover(markdown, for: word)
+        }
+    }
+
+    /// For launch options: hovers over the symbol at a character index as if
+    /// the pointer had rested there.
+    func triggerHover(at index: Int) async {
+        guard let onHover, let textStorage, index < textStorage.length else { return }
+        let word = selectionRange(forProposedRange: NSRange(location: index, length: 0), granularity: .selectByWord)
+        guard let markdown = await onHover(index) else { return }
+        showHover(markdown, for: word)
+    }
+
+    private func setUnderline(_ range: NSRange?) {
+        guard range != underlinedWord, let layoutManager else { return }
+        if let old = underlinedWord {
+            layoutManager.removeTemporaryAttribute(.underlineStyle, forCharacterRange: old)
+        }
+        if let range {
+            layoutManager.addTemporaryAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, forCharacterRange: range)
+        }
+        underlinedWord = range
+    }
+
+    private func showHover(_ markdown: String, for word: NSRange) {
+        guard let layoutManager, let textContainer, window != nil else { return }
+        let glyphs = layoutManager.glyphRange(forCharacterRange: word, actualCharacterRange: nil)
+        var rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer)
+        rect.origin.x += textContainerOrigin.x
+        rect.origin.y += textContainerOrigin.y
+        let popover = NSPopover()
+        popover.behavior = .semitransient
+        popover.animates = false
+        popover.contentViewController = HoverContent.controller(markdown: markdown)
+        popover.show(relativeTo: rect, of: self, preferredEdge: .maxY)
+        hoverPopover = popover
+    }
+
+    private func dismissHover() {
+        hoverTask?.cancel()
+        hoveredWord = nil
+        hoverPopover?.performClose(nil)
+        hoverPopover = nil
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
+        dismissHover()
         let menu = super.menu(for: event) ?? NSMenu()
+        // A pane without navigation (the base side of a split) gets the
+        // standard menu only.
+        guard onNavigate != nil else { return menu }
         let index = characterIndexForInsertion(at: convert(event.locationInWindow, from: nil))
         // Right-clicking outside the selection moves the cursor there, so
         // the menu acts on what was clicked.

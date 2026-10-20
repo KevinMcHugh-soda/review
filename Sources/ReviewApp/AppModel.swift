@@ -15,7 +15,11 @@ final class AppModel {
 
     /// Opened pull requests, most recent first.
     private(set) var pullRequests: [PullRequestReference] = []
-    var selection: PullRequestReference?
+    var selection: PullRequestReference? {
+        didSet {
+            for (reference, session) in sessions { session.isSelectedInApp = reference == selection }
+        }
+    }
     private var sessions: [PullRequestReference: ReviewSession] = [:]
     private var startup: Task<Void, Never>?
 
@@ -50,9 +54,12 @@ final class AppModel {
             }
             return
         }
-        if options.wholeFile { selected.mode = .file }
+        if let mode = options.mode { selected.mode = mode }
         if !selected.hasStarted { await load(selected) }
-        if let filePath = options.filePath { selected.selectedFilePath = filePath }
+        if let filePath = options.filePath {
+            selected.selectedFilePath = filePath
+            for gap in options.expandedGaps { selected.expandGap(gap) }
+        }
         if let navigation = options.navigation {
             await selected.performWhenReady(navigation.action, line: navigation.line, column: navigation.column)
         }
@@ -60,12 +67,30 @@ final class AppModel {
             await selected.scriptedComment(lines: comment.lines, note: comment.note, ask: comment.ask)
         }
         if options.opensPostSheet { selected.isPostSheetShown = true }
+        if let hover = options.hover {
+            await selected.performWhenReady(.definition, line: 0, column: 0, onlyWait: true)
+            if let row = selected.document?.row(forNewLine: hover.line),
+               let textView = Self.codeTextView(in: NSApp.windows.first?.contentView)
+            {
+                await textView.triggerHover(at: textView.rowStarts[row] + hover.column)
+            }
+        }
         if let snapshotPath = options.snapshotPath {
             // Let the document build and the text view lay out.
             try? await Task.sleep(for: .seconds(2))
             LaunchOptions.writeSnapshot(to: snapshotPath)
             NSApplication.shared.terminate(nil)
         }
+    }
+
+    /// The first code view in a view tree, for launch-option scripting.
+    private static func codeTextView(in view: NSView?) -> CodeTextView? {
+        guard let view else { return nil }
+        if let found = view as? CodeTextView { return found }
+        for subview in view.subviews {
+            if let found = codeTextView(in: subview) { return found }
+        }
+        return nil
     }
 
     func checkTools() async {
@@ -117,6 +142,15 @@ final class AppModel {
         try? open(value)
     }
 
+    /// From a notification: selects the PR, and the draft in its inspector.
+    func reveal(pullRequest: String, draft: UUID?) {
+        guard let reference = try? PullRequestReference(parsing: pullRequest) else { return }
+        open(reference)
+        guard let session = session(for: reference) else { return }
+        session.isInspectorShown = true
+        if let draft { session.selectedDraftID = draft }
+    }
+
     // MARK: Open pull requests across launches
 
     /// Sessions are made but not loaded: each loads when it is first selected.
@@ -126,6 +160,9 @@ final class AppModel {
             sessions[reference] = ReviewSession(reference: reference)
         }
         if selection == nil { selection = pullRequests.first }
+        // A link that launched the app may have opened a PR before there was
+        // anywhere to save it; save the merged list now.
+        saveOpenPullRequests()
     }
 
     private func saveOpenPullRequests() {

@@ -4,7 +4,15 @@ import ReviewKit
 /// Two line-number columns — merge base, then head — and a +/− mark, as a
 /// vertical ruler on the code's scroll view.
 final class LineNumberGutter: NSRulerView {
+    /// Which number columns to draw. A split pane needs one: the left only
+    /// has base lines, the right only head lines.
+    struct Columns: Equatable {
+        var old = true
+        var new = true
+    }
+
     private var digits = 1
+    private var columns = Columns()
     /// Clicking a row's draft bubble.
     var onSelectDraft: ((UUID) -> Void)?
     /// Clicking a row's GitHub thread mark.
@@ -24,13 +32,17 @@ final class LineNumberGutter: NSRulerView {
         fatalError("init(coder:) is not supported")
     }
 
-    /// Resizes for the widest line number in the document.
-    func update(maxLineNumber: Int) {
-        digits = max(String(maxLineNumber).count, 2)
+    /// Resizes for the widest line number and the columns these rows use.
+    func update(rows: [CodeDocument.Row]) {
+        let maxLine = rows.lazy.map { max($0.oldLine ?? 0, $0.newLine ?? 0) }.max() ?? 0
+        digits = max(String(maxLine).count, 2)
+        columns = Columns(old: rows.contains { $0.oldLine != nil }, new: rows.contains { $0.newLine != nil })
+        if !columns.old, !columns.new { columns = Columns() }
         let digitWidth = ("8" as NSString).size(withAttributes: [.font: Theme.Code.gutterFont]).width
         let column = digitWidth * CGFloat(digits)
-        ruleThickness = Theme.Code.draftMarkWidth + Theme.Code.gutterPadding * 2 + column * 2
-            + Theme.Code.gutterColumnGap * 2 + digitWidth
+        let shown = CGFloat((columns.old ? 1 : 0) + (columns.new ? 1 : 0))
+        ruleThickness = Theme.Code.draftMarkWidth + Theme.Code.gutterPadding * 2 + column * shown
+            + Theme.Code.gutterColumnGap * shown + digitWidth
         needsDisplay = true
     }
 
@@ -44,8 +56,8 @@ final class LineNumberGutter: NSRulerView {
         let font = Theme.Code.gutterFont
         let digitWidth = ("8" as NSString).size(withAttributes: [.font: font]).width
         let column = digitWidth * CGFloat(digits)
-        let oldRight = Theme.Code.draftMarkWidth + Theme.Code.gutterPadding + column
-        let newRight = oldRight + Theme.Code.gutterColumnGap + column
+        let oldRight = Theme.Code.draftMarkWidth + Theme.Code.gutterPadding + (columns.old ? column : 0)
+        let newRight = oldRight + (columns.old ? Theme.Code.gutterColumnGap : 0) + (columns.new ? column : 0)
         let markLeft = newRight + Theme.Code.gutterColumnGap
 
         // Numbers sit on the code's baseline, not centred in the row: the gutter
@@ -74,14 +86,14 @@ final class LineNumberGutter: NSRulerView {
                 image.withSymbolConfiguration(.init(paletteColors: [color]))?
                     .draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             }
-            draw(item.oldLine, rightEdge: oldRight, y: top, attributes: numberAttributes)
-            draw(item.newLine, rightEdge: newRight, y: top, attributes: numberAttributes)
+            if columns.old { draw(item.oldLine, rightEdge: oldRight, y: top, attributes: numberAttributes) }
+            if columns.new { draw(item.newLine, rightEdge: newRight, y: top, attributes: numberAttributes) }
 
             let mark =
                 switch item.kind {
                 case .added: "+"
                 case .removed: "−"
-                case .context, .hunkHeader: ""
+                case .context, .hunkHeader, .gap, .filler: ""
                 }
             (mark as NSString).draw(
                 at: NSPoint(x: markLeft, y: top),

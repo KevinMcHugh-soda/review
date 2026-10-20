@@ -13,6 +13,12 @@ public struct CodeDocument: Sendable {
             case context
             case added
             case removed
+            /// Unchanged lines the diff left out, collapsed into one row that
+            /// expands when clicked.
+            case gap
+            /// The empty side of a split row: an added line has nothing on the
+            /// left, a removed one nothing on the right.
+            case filler
         }
 
         public let kind: Kind
@@ -20,11 +26,33 @@ public struct CodeDocument: Sendable {
         public let oldLine: Int?
         public let newLine: Int?
         public let spans: [HighlightSpan]
+        /// For a `.gap` row, which gap it is: 0 before the first hunk, `n`
+        /// after the last of `n` hunks.
+        public let gap: Int?
+
+        init(kind: Kind, text: String, oldLine: Int?, newLine: Int?, spans: [HighlightSpan], gap: Int? = nil) {
+            self.kind = kind
+            self.text = text
+            self.oldLine = oldLine
+            self.newLine = newLine
+            self.spans = spans
+            self.gap = gap
+        }
+
+        /// A row that stands for code: not a header, gap or filler.
+        public var isCode: Bool {
+            switch kind {
+            case .context, .added, .removed: true
+            case .hunkHeader, .gap, .filler: false
+            }
+        }
     }
 
     public enum Mode: String, Sendable, Hashable, CaseIterable {
         /// Hunks only, removed and added lines interleaved. The default.
         case diff
+        /// Hunks side by side: the base on the left, head on the right.
+        case split
         /// The whole file as it is at head, with the PR's additions marked.
         case file
     }
@@ -43,7 +71,10 @@ public struct CodeDocument: Sendable {
         case other
     }
 
+    /// In split mode, the right (head) side; otherwise every row.
     public let rows: [Row]
+    /// In split mode, the left (base) side, row for row beside `rows`.
+    public let leftRows: [Row]?
     /// The file has no text to show: binary, or empty on both sides.
     public let isBinary: Bool
     public private(set) var source: Source = .pullRequest
@@ -58,10 +89,12 @@ public struct CodeDocument: Sendable {
     /// - Parameters:
     ///   - oldText: the file at the merge base; nil if it did not exist.
     ///   - newText: the file at head; nil if it was deleted.
-    public init(file: FileDiff, oldText: String?, newText: String?, mode: Mode) {
+    ///   - expandedGaps: which gaps between hunks to show in full.
+    public init(file: FileDiff, oldText: String?, newText: String?, mode: Mode, expandedGaps: Set<Int> = []) {
         isBinary = file.isBinary
         guard !file.isBinary else {
             rows = []
+            leftRows = nil
             return
         }
         let language = SyntaxLanguage(path: file.path)
@@ -70,17 +103,28 @@ public struct CodeDocument: Sendable {
         let old = oldText.map { HighlightedLines.highlighting($0, as: language) }
         let new = newText.map { HighlightedLines.highlighting($0, as: language) }
 
+        let newLineCount = newText.map { Self.lines(of: $0).count } ?? 0
+        let newLines = newText.map(Self.lines) ?? []
         switch mode {
         case .diff:
-            rows = Self.diffRows(file, old: old, new: new)
+            rows = Self.diffRows(file, old: old, new: new, newLines: newLines, newLineCount: newLineCount, expanded: expandedGaps)
+            leftRows = nil
+        case .split:
+            let split = Self.splitRows(
+                file, old: old, new: new, newLines: newLines, newLineCount: newLineCount, expanded: expandedGaps
+            )
+            rows = split.right
+            leftRows = split.left
         case .file:
             rows = Self.fileRows(file, oldText: oldText, newText: newText, old: old, new: new)
+            leftRows = nil
         }
     }
 
     /// A file shown whole with nothing marked — one the PR does not change.
     public init(plainText text: String, path: String) {
         isBinary = false
+        leftRows = nil
         source = .other
         let lines = HighlightedLines.highlighting(text, as: SyntaxLanguage(path: path))
         rows = Self.lines(of: text).enumerated().map { offset, line in
@@ -99,23 +143,146 @@ public struct CodeDocument: Sendable {
         rows.firstIndex { $0.newLine == line }
     }
 
-    static func diffRows(_ file: FileDiff, old: HighlightedLines?, new: HighlightedLines?) -> [Row] {
-        file.hunks.flatMap { hunk in
-            let header = Row(kind: .hunkHeader, text: hunk.header, oldLine: nil, newLine: nil, spans: [])
-            return [header] + hunk.lines.map { line in
-                let spans =
-                    if let newLine = line.newLine { new?.spans(onLine: newLine) ?? [] }
-                    else if let oldLine = line.oldLine { old?.spans(onLine: oldLine) ?? [] }
-                    else { [HighlightSpan]() }
-                let kind: Row.Kind =
-                    switch line.kind {
-                    case .context: .context
-                    case .added: .added
-                    case .removed: .removed
-                    }
-                return Row(kind: kind, text: line.text, oldLine: line.oldLine, newLine: line.newLine, spans: spans)
+    static func diffRows(
+        _ file: FileDiff, old: HighlightedLines?, new: HighlightedLines?,
+        newLines: [String], newLineCount: Int, expanded: Set<Int>
+    ) -> [Row] {
+        let gaps = Self.gaps(in: file, newLineCount: newLineCount)
+        var rows: [Row] = []
+        for (index, hunk) in file.hunks.enumerated() {
+            // Added and deleted files have no gaps at all.
+            if gaps.indices.contains(index) {
+                rows += gapRows(gaps[index], file: file, new: new, newLines: newLines, expanded: expanded)
+            }
+            rows.append(Row(kind: .hunkHeader, text: hunk.header, oldLine: nil, newLine: nil, spans: []))
+            rows += hunk.lines.map { row(for: $0, old: old, new: new) }
+        }
+        if let trailing = gaps.last, gaps.count > file.hunks.count {
+            rows += gapRows(trailing, file: file, new: new, newLines: newLines, expanded: expanded)
+        }
+        return rows
+    }
+
+    private static func row(for line: DiffLine, old: HighlightedLines?, new: HighlightedLines?) -> Row {
+        let spans =
+            if let newLine = line.newLine { new?.spans(onLine: newLine) ?? [] }
+            else if let oldLine = line.oldLine { old?.spans(onLine: oldLine) ?? [] }
+            else { [HighlightSpan]() }
+        let kind: Row.Kind =
+            switch line.kind {
+            case .context: .context
+            case .added: .added
+            case .removed: .removed
+            }
+        return Row(kind: kind, text: line.text, oldLine: line.oldLine, newLine: line.newLine, spans: spans)
+    }
+
+    /// A run of head lines the diff does not show.
+    struct Gap: Hashable {
+        let index: Int
+        let lines: ClosedRange<Int>?
+    }
+
+    /// The gap before each hunk, and one after the last when the file goes on.
+    /// Head-side line ranges; nil where hunks touch. A count of zero names the
+    /// line *before* the range, so a hunk's first head line is start + 1 then.
+    static func gaps(in file: FileDiff, newLineCount: Int) -> [Gap] {
+        guard file.newPath != nil, file.oldPath != nil, newLineCount > 0 else { return [] }
+        var gaps: [Gap] = []
+        var previousLast = 0
+        for (index, hunk) in file.hunks.enumerated() {
+            let first = hunk.newCount == 0 ? hunk.newStart + 1 : hunk.newStart
+            gaps.append(Gap(index: index, lines: first - 1 >= previousLast + 1 ? (previousLast + 1)...(first - 1) : nil))
+            previousLast = hunk.newCount == 0 ? hunk.newStart : hunk.newStart + hunk.newCount - 1
+        }
+        if previousLast < newLineCount {
+            gaps.append(Gap(index: file.hunks.count, lines: (previousLast + 1)...newLineCount))
+        }
+        return gaps
+    }
+
+    /// One collapsed row, or — expanded — every line in the gap as context.
+    private static func gapRows(
+        _ gap: Gap, file: FileDiff, new: HighlightedLines?, newLines: [String], expanded: Set<Int>
+    ) -> [Row] {
+        guard let lines = gap.lines else { return [] }
+        guard expanded.contains(gap.index) else {
+            let count = lines.count
+            return [Row(
+                kind: .gap, text: "⋯ \(count) unchanged \(count == 1 ? "line" : "lines")",
+                oldLine: nil, newLine: nil, spans: [], gap: gap.index
+            )]
+        }
+        return lines.compactMap { number in
+            guard newLines.indices.contains(number - 1) else { return nil }
+            return Row(
+                kind: .context, text: newLines[number - 1],
+                oldLine: oldLine(forUnchanged: number, in: file.hunks), newLine: number,
+                spans: new?.spans(onLine: number) ?? []
+            )
+        }
+    }
+
+    /// The diff side by side. Within a hunk, a run of removed lines and the run
+    /// of added lines after it pair up row for row; the shorter side is padded
+    /// with filler, so a line and its replacement sit level.
+    static func splitRows(
+        _ file: FileDiff, old: HighlightedLines?, new: HighlightedLines?,
+        newLines: [String], newLineCount: Int, expanded: Set<Int>
+    ) -> (left: [Row], right: [Row]) {
+        let filler = Row(kind: .filler, text: "", oldLine: nil, newLine: nil, spans: [])
+        var left: [Row] = []
+        var right: [Row] = []
+
+        func appendGap(_ gap: Gap) {
+            for row in gapRows(gap, file: file, new: new, newLines: newLines, expanded: expanded) {
+                if row.kind == .gap {
+                    left.append(row)
+                    right.append(row)
+                } else {
+                    left.append(Row(kind: .context, text: row.text, oldLine: row.oldLine, newLine: nil, spans: row.spans))
+                    right.append(Row(kind: .context, text: row.text, oldLine: nil, newLine: row.newLine, spans: row.spans))
+                }
             }
         }
+
+        let gaps = Self.gaps(in: file, newLineCount: newLineCount)
+        for (index, hunk) in file.hunks.enumerated() {
+            if gaps.indices.contains(index) { appendGap(gaps[index]) }
+            let header = Row(kind: .hunkHeader, text: hunk.header, oldLine: nil, newLine: nil, spans: [])
+            left.append(header)
+            right.append(header)
+
+            var removed: [Row] = []
+            var added: [Row] = []
+            func flush() {
+                for offset in 0..<max(removed.count, added.count) {
+                    left.append(offset < removed.count ? removed[offset] : filler)
+                    right.append(offset < added.count ? added[offset] : filler)
+                }
+                removed.removeAll()
+                added.removeAll()
+            }
+            for line in hunk.lines {
+                switch line.kind {
+                case .removed:
+                    // A removed line after added ones starts a new block.
+                    if !added.isEmpty { flush() }
+                    removed.append(row(for: line, old: old, new: new))
+                case .added:
+                    added.append(row(for: line, old: old, new: new))
+                case .context:
+                    flush()
+                    let oldSpans = line.oldLine.flatMap { old?.spans(onLine: $0) } ?? []
+                    left.append(Row(kind: .context, text: line.text, oldLine: line.oldLine, newLine: nil, spans: oldSpans))
+                    right.append(Row(kind: .context, text: line.text, oldLine: nil, newLine: line.newLine,
+                                     spans: line.newLine.flatMap { new?.spans(onLine: $0) } ?? []))
+                }
+            }
+            flush()
+        }
+        if gaps.count > file.hunks.count, let trailing = gaps.last { appendGap(trailing) }
+        return (left, right)
     }
 
     /// Every line at head, marking those the PR added. A deleted file shows its

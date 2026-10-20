@@ -47,7 +47,9 @@ public struct LoadedReview: Sendable {
     /// base has moved and changed this file too, that differs from head: the
     /// text comes from the merge tree and the marks from diffing the base tip
     /// against it — what the merge adds, in the merged file's numbering.
-    public func document(for file: FileDiff, mode: CodeDocument.Mode) async throws -> CodeDocument {
+    public func document(
+        for file: FileDiff, mode: CodeDocument.Mode, expandedGaps: Set<Int> = []
+    ) async throws -> CodeDocument {
         guard !file.isBinary else { return CodeDocument(file: file, oldText: nil, newText: nil, mode: mode) }
         async let old = text(of: file, on: .base)
         async let new = text(of: file, on: .head)
@@ -68,7 +70,7 @@ public struct LoadedReview: Sendable {
 
         // Off the caller's actor: parsing a large file takes a moment.
         return await Task.detached(priority: .userInitiated) {
-            CodeDocument(file: file, oldText: oldText, newText: newText, mode: mode)
+            CodeDocument(file: file, oldText: oldText, newText: newText, mode: mode, expandedGaps: expandedGaps)
         }.value
     }
 

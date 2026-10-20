@@ -24,8 +24,11 @@ struct ReviewCommands: Commands {
             Button("Show Diff") { session?.mode = .diff }
                 .keyboardShortcut("1", modifiers: .command)
                 .disabled(session?.selectedFile == nil)
-            Button("Show Whole File") { session?.mode = .file }
+            Button("Show Side by Side") { session?.mode = .split }
                 .keyboardShortcut("2", modifiers: .command)
+                .disabled(session?.selectedFile == nil)
+            Button("Show Whole File") { session?.mode = .file }
+                .keyboardShortcut("3", modifiers: .command)
                 .disabled(session?.selectedFile == nil)
             Divider()
             Button("Next Change") { session?.revealChange(offset: 1) }

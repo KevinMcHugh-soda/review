@@ -137,8 +137,15 @@ struct CheckoutAndDiffTests {
     /// What `ReviewLoader.load` does after the GitHub call, which needs a
     /// network.
     private func load(_ fixture: FixtureRepository) async throws -> LoadedReview {
-        let git = client(fixture)
-        let checkouts = store(fixture)
+        try await Self.load(fixture)
+    }
+
+    static func load(_ fixture: FixtureRepository) async throws -> LoadedReview {
+        let git = GitClient(git: URL(fileURLWithPath: "/usr/bin/git"), gh: nil, environment: fixture.environment)
+        let source = fixture.source.absoluteString
+        let checkouts = CheckoutStore(
+            root: fixture.directory.appendingPathComponent("support", isDirectory: true), git: git, remoteURL: { _ in source }
+        )
         let repository = try await checkouts.ensureRepository(for: fixture.reference)
         try await checkouts.fetch(fixture.pullRequest, into: repository)
         let mergeBase = try await git.mergeBase(fixture.baseSHA, fixture.headSHA, in: repository)

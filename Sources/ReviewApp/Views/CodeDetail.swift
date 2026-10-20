@@ -51,10 +51,11 @@ struct CodeDetail: View {
             ToolbarItem(placement: .primaryAction) {
                 Picker("View", selection: $session.mode) {
                     Text("Diff").tag(CodeDocument.Mode.diff)
+                    Text("Split").tag(CodeDocument.Mode.split)
                     Text("File").tag(CodeDocument.Mode.file)
                 }
                 .pickerStyle(.segmented)
-                .help("Show only the changes (⌘1) or the whole file after the merge (⌘2)")
+                .help("The changes (⌘1), side by side (⌘2), or the whole file after the merge (⌘3)")
                 .disabled(session.selectedFile == nil)
             }
             ToolbarItem(placement: .primaryAction) {
@@ -104,32 +105,45 @@ struct CodeDetail: View {
                         description: Text(emptyDescription)
                     )
                 } else {
-                    CodeView(
-                        document: document,
-                        documentID: id,
-                        reveal: session.pendingReveal,
-                        draftRows: session.draftRows,
-                        threadRows: session.threadRows,
-                        onSelectionChange: { cursor, rows in
-                            session.cursor = cursor
-                            session.selectedRows = rows
-                        },
-                        onNavigate: { action, cursor in
-                            Task { await session.perform(action, at: cursor) }
-                        },
-                        onAddComment: { session.addDraft() },
-                        onSelectDraft: { id in
-                            session.selectedDraftID = id
-                            session.isInspectorShown = true
-                        },
-                        onSelectThread: { id in
-                            session.selectedThreadID = id
-                            session.isInspectorShown = true
-                        }
-                    )
+                    if session.mode == .split, document.leftRows != nil {
+                        SplitCodeView(
+                            document: document, documentID: id, scrollKey: session.scrollKey ?? id,
+                            reveal: session.pendingReveal, draftRows: session.draftRows,
+                            threadRows: session.threadRows, actions: actions
+                        )
+                    } else {
+                        CodeView(
+                            document: document, documentID: id, scrollKey: session.scrollKey ?? id,
+                            reveal: session.pendingReveal, draftRows: session.draftRows,
+                            threadRows: session.threadRows, actions: actions
+                        )
+                    }
                 }
             }
         }
+    }
+
+    private var actions: CodeViewActions {
+        CodeViewActions(
+            onSelectionChange: { cursor, rows in
+                session.cursor = cursor
+                session.selectedRows = rows
+            },
+            onNavigate: { action, cursor in
+                Task { await session.perform(action, at: cursor) }
+            },
+            onAddComment: { session.addDraft() },
+            onSelectDraft: { id in
+                session.selectedDraftID = id
+                session.isInspectorShown = true
+            },
+            onSelectThread: { id in
+                session.selectedThreadID = id
+                session.isInspectorShown = true
+            },
+            onExpandGap: { session.expandGap($0) },
+            onHover: { await session.hover(at: $0) }
+        )
     }
 
     /// Why a file with no rows is in the list at all.

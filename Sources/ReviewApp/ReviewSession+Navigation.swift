@@ -44,7 +44,7 @@ extension ReviewSession {
         guard let document, document.rows.indices.contains(cursor.row) else { return .failure(.nothingThere) }
         guard document.isNavigable else { return .failure(.afterMerge) }
         let row = document.rows[cursor.row]
-        guard row.kind != .hunkHeader else { return .failure(.nothingThere) }
+        guard row.isCode else { return .failure(.nothingThere) }
         guard let line = row.newLine else { return .failure(.removedLine) }
         let path: String
         if let externalFile {
@@ -73,6 +73,13 @@ extension ReviewSession {
     var currentPosition: ViewerPosition {
         let line = cursor.flatMap { document?.rows.indices.contains($0.row) == true ? document?.rows[$0.row].newLine : nil }
         return ViewerPosition(selectedFilePath: selectedFilePath, externalFile: externalFile, mode: mode, line: line)
+    }
+
+    /// The language server's description of the symbol at a position, for
+    /// the hover popover. Nil whenever there is nothing to say.
+    func hover(at cursor: Cursor) async -> String? {
+        guard case .success(let target) = navigationTarget(at: cursor), let navigator else { return nil }
+        return try? await navigator.hover(path: target.path, line: target.line, column: target.column)
     }
 
     // MARK: Actions
@@ -155,10 +162,11 @@ extension ReviewSession {
 
     /// For launch options: waits for the document and the servers, then acts
     /// at a head-side line. Gives up after a minute.
-    func performWhenReady(_ action: NavigationAction, line: Int, column: Int) async {
+    func performWhenReady(_ action: NavigationAction, line: Int, column: Int, onlyWait: Bool = false) async {
         let deadline = ContinuousClock.now + .seconds(60)
         while ContinuousClock.now < deadline {
             let serversReady = !serverStatus.isEmpty && serverStatus.values.allSatisfy { $0 == .ready }
+            if onlyWait, navigationState == .ready, serversReady, document != nil { return }
             if navigationState == .ready, serversReady, let row = document?.row(forNewLine: line) {
                 await perform(action, at: Cursor(row: row, column: column))
                 return

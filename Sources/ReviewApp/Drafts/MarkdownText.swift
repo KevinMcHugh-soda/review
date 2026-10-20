@@ -21,6 +21,8 @@ struct MarkdownText: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: Theme.codeBlockCornerRadius))
+                case .rule:
+                    Divider()
                 case .heading(let text):
                     Text(Self.inline(text))
                         .font(Theme.Fonts.rowTitle)
@@ -38,6 +40,8 @@ struct MarkdownText: View {
         case paragraph(String)
         case heading(String)
         case code(String)
+        /// `---`, which gopls puts between a signature and its doc comment.
+        case rule
     }
 
     static func blocks(_ markdown: String) -> [Block] {
@@ -62,6 +66,9 @@ struct MarkdownText: View {
                 }
             } else if code != nil {
                 code?.append(line)
+            } else if ["---", "***", "___"].contains(line.trimmingCharacters(in: .whitespaces)) {
+                flushParagraph()
+                blocks.append(.rule)
             } else if line.hasPrefix("#") {
                 flushParagraph()
                 blocks.append(.heading(line.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces)))

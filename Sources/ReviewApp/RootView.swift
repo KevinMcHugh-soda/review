@@ -102,8 +102,7 @@ struct RootView: View {
         .navigationSubtitle(subtitle)
         .focusedSceneValue(\.reviewSession, model.selectedSession)
         .onOpenURL { model.handle($0) }
-        // Route `review://` links to this window rather than a new one.
-        .handlesExternalEvents(preferring: ["review"], allowing: ["*"])
+
     }
 
     private var title: String {

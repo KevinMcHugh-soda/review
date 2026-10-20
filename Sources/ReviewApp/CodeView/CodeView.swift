@@ -2,8 +2,18 @@ import AppKit
 import ReviewKit
 import SwiftUI
 
-/// The code viewer: a `CodeTextView` in a scroll view, with the line-number
-/// gutter as its ruler.
+/// What the code view reports and asks for — the same for one pane or two.
+struct CodeViewActions {
+    let onSelectionChange: (Cursor, ClosedRange<Int>?) -> Void
+    let onNavigate: (NavigationAction, Cursor) -> Void
+    let onAddComment: () -> Void
+    let onSelectDraft: (UUID) -> Void
+    let onSelectThread: (String) -> Void
+    let onExpandGap: (Int) -> Void
+    let onHover: (Cursor) async -> String?
+}
+
+/// The code viewer: one `CodePane` showing a document's rows.
 ///
 /// `documentID` decides when the text is replaced. SwiftUI calls
 /// `updateNSView` for many reasons; re-setting the text each time would throw
@@ -11,81 +21,52 @@ import SwiftUI
 struct CodeView: NSViewRepresentable {
     let document: CodeDocument
     let documentID: String
+    let scrollKey: String
     /// A place to scroll to once this document shows; applied once per id.
     let reveal: Reveal?
     let draftRows: [Int: UUID]
     let threadRows: [Int: String]
-    let onSelectionChange: (Cursor, ClosedRange<Int>?) -> Void
-    let onNavigate: (NavigationAction, Cursor) -> Void
-    let onAddComment: () -> Void
-    let onSelectDraft: (UUID) -> Void
-    let onSelectThread: (String) -> Void
+    let actions: CodeViewActions
 
-    final class Coordinator: NSObject, NSTextViewDelegate {
-        var shownID: String?
-        var revealedID: UUID?
-        var onSelectionChange: ((Cursor, ClosedRange<Int>?) -> Void)?
-
-        func textViewDidChangeSelection(_ notification: Notification) {
-            guard let textView = notification.object as? CodeTextView else { return }
-            let range = textView.selectedRange()
-            guard let cursor = textView.cursor(at: range.location) else { return }
-            let rows = textView.rows(in: range)
-            // Deferred: this also fires while `updateNSView` replaces the
-            // text, and changing observed state mid-update is not allowed.
-            DispatchQueue.main.async { [onSelectionChange] in onSelectionChange?(cursor, rows) }
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
+    func makeCoordinator() -> CodePane {
+        CodePane()
     }
 
     func makeNSView(context: Context) -> NSScrollView {
-        let scrollView = NSScrollView()
-        scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = true
-        scrollView.autohidesScrollers = true
-        scrollView.borderType = .noBorder
-
-        let textView = CodeTextView.make()
-        textView.delegate = context.coordinator
-        scrollView.documentView = textView
-
-        let gutter = LineNumberGutter(textView: textView)
-        scrollView.verticalRulerView = gutter
-        scrollView.hasVerticalRuler = true
-        scrollView.rulersVisible = true
-        return scrollView
+        context.coordinator.scrollView
     }
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
-        guard let textView = scrollView.documentView as? CodeTextView else { return }
-        let coordinator = context.coordinator
-        coordinator.onSelectionChange = onSelectionChange
-        textView.onNavigate = { [onNavigate, weak textView] action, index in
+        let pane = context.coordinator
+        pane.configureInteractive(actions)
+        pane.show(document.rows, id: documentID, scrollKey: scrollKey)
+        pane.textView.setMarks(drafts: draftRows, threads: threadRows)
+        pane.apply(reveal, row: reveal?.row(in: document))
+    }
+}
+
+extension CodePane {
+    /// Wires a pane up for full interaction: navigation, comments, gaps, hover.
+    func configureInteractive(_ actions: CodeViewActions) {
+        onSelectionChange = actions.onSelectionChange
+        textView.onNavigate = { [weak textView] action, index in
             guard let cursor = textView?.cursor(at: index) else { return }
-            onNavigate(action, cursor)
+            actions.onNavigate(action, cursor)
         }
-        textView.onAddComment = onAddComment
-        (scrollView.verticalRulerView as? LineNumberGutter)?.onSelectDraft = onSelectDraft
-        (scrollView.verticalRulerView as? LineNumberGutter)?.onSelectThread = onSelectThread
+        textView.onAddComment = actions.onAddComment
+        textView.onExpandGap = actions.onExpandGap
+        textView.onHover = { [weak textView] index in
+            guard let cursor = textView?.cursor(at: index) else { return nil }
+            return await actions.onHover(cursor)
+        }
+        gutter.onSelectDraft = actions.onSelectDraft
+        gutter.onSelectThread = actions.onSelectThread
+    }
+}
 
-        if coordinator.shownID != documentID {
-            coordinator.shownID = documentID
-            coordinator.revealedID = nil
-            textView.show(document.rows, text: CodeAttributedText.make(document))
-            (scrollView.verticalRulerView as? LineNumberGutter)?.update(maxLineNumber: document.maxLineNumber)
-        }
-        if textView.draftRows != draftRows { textView.draftRows = draftRows }
-        if textView.threadRows != threadRows { textView.threadRows = threadRows }
-
-        if let reveal, reveal.id != coordinator.revealedID, let row = reveal.row(in: document) {
-            coordinator.revealedID = reveal.id
-            // After this layout pass, once the new text is laid out.
-            DispatchQueue.main.async {
-                textView.reveal(row: row, column: reveal.column, length: reveal.length)
-            }
-        }
+extension CodeTextView {
+    func setMarks(drafts: [Int: UUID], threads: [Int: String]) {
+        if draftRows != drafts { draftRows = drafts }
+        if threadRows != threads { threadRows = threads }
     }
 }

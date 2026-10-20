@@ -4,7 +4,7 @@ import ReviewKit
 /// Turns a `CodeDocument` into the attributed string the text view shows:
 /// rows joined by newlines, monospaced, with highlight spans coloured.
 enum CodeAttributedText {
-    static func make(_ document: CodeDocument) -> NSAttributedString {
+    static func make(_ rows: [CodeDocument.Row]) -> NSAttributedString {
         let font = Theme.Code.font
         let paragraph = NSMutableParagraphStyle()
         let spaceWidth = (" " as NSString).size(withAttributes: [.font: font]).width
@@ -12,7 +12,7 @@ enum CodeAttributedText {
         paragraph.defaultTabInterval = spaceWidth * CGFloat(Theme.Code.tabWidth)
         paragraph.lineSpacing = Theme.Code.lineSpacing
 
-        let text = document.rows.map(\.text).joined(separator: "\n")
+        let text = rows.map(\.text).joined(separator: "\n")
         let result = NSMutableAttributedString(
             string: text,
             attributes: [.font: font, .foregroundColor: Theme.Code.text, .paragraphStyle: paragraph]
@@ -21,9 +21,9 @@ enum CodeAttributedText {
 
         var offset = 0
         result.beginEditing()
-        for row in document.rows {
+        for row in rows {
             let rowLength = (row.text as NSString).length
-            if row.kind == .hunkHeader {
+            if row.kind == .hunkHeader || row.kind == .gap {
                 result.addAttribute(
                     .foregroundColor, value: Theme.Code.hunkHeaderText,
                     range: NSRange(location: offset, length: rowLength)

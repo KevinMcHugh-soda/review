@@ -195,3 +195,51 @@ extension GitHubClient {
             .sorted { $0.updatedAt > $1.updatedAt }
     }
 }
+
+extension GitHubClient {
+    /// Replies to an existing thread. Posted at once, as on GitHub's own
+    /// "Reply" button — not added to a pending review.
+    public func reply(toThread threadID: String, body: String) async throws {
+        try await graphQL(
+            """
+            mutation($thread: ID!, $body: String!) {
+              addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $thread, body: $body }) {
+                comment { id }
+              }
+            }
+            """,
+            variables: ["thread": threadID, "body": body]
+        )
+    }
+
+    public func setResolved(_ isResolved: Bool, thread threadID: String) async throws {
+        let mutation = isResolved ? "resolveReviewThread" : "unresolveReviewThread"
+        try await graphQL(
+            """
+            mutation($thread: ID!) {
+              \(mutation)(input: { threadId: $thread }) { thread { id isResolved } }
+            }
+            """,
+            variables: ["thread": threadID]
+        )
+    }
+
+    /// A GraphQL request whose variables are all strings (`-f`, so a body that
+    /// looks like a number or `true` is never retyped). GitHub reports
+    /// GraphQL failures as `errors` in a 200 response, which `gh` turns into a
+    /// non-zero exit.
+    private func graphQL(_ query: String, variables: [String: String]) async throws {
+        var arguments = ["api", "graphql", "-f", "query=\(query)"]
+        for (name, value) in variables.sorted(by: { $0.key < $1.key }) {
+            arguments += ["-f", "\(name)=\(value)"]
+        }
+        let output = try await Subprocess.run(gh, arguments, environment: environment, timeout: .seconds(60))
+        guard output.succeeded else {
+            let detail = [output.stdoutText, output.stderrText]
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            throw GitHubError.failed(status: output.status, message: detail)
+        }
+    }
+}

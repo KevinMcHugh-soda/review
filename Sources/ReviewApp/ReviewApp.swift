@@ -3,14 +3,22 @@ import SwiftUI
 // Not `main.swift` — see the note in Sources/ReviewCLI/Main.swift.
 @main
 struct ReviewApp: App {
+    @NSApplicationDelegateAdaptor private var delegate: AppDelegate
     @State private var model = AppModel()
 
     var body: some Scene {
-        WindowGroup {
+        // One `Window`, not a `WindowGroup`: a WindowGroup opens a new window
+        // for each `review://` link, and steering it with
+        // `handlesExternalEvents` made launches open two. A single Window
+        // cannot be duplicated, so links land in it through `onOpenURL`.
+        Window("Review", id: "main") {
             RootView()
                 .environment(model)
                 .frame(minWidth: Theme.windowMinWidth, minHeight: Theme.windowMinHeight)
-                .task { await model.start(applying: .current) }
+                .task {
+                    delegate.attach(model)
+                    await model.start(applying: .current)
+                }
         }
         .defaultSize(width: Theme.windowDefaultWidth, height: Theme.windowDefaultHeight)
         .commands {
@@ -20,7 +28,5 @@ struct ReviewApp: App {
                     .keyboardShortcut("r", modifiers: .command)
             }
         }
-        // One window: `review://` links open in it, not in a new one.
-        .handlesExternalEvents(matching: ["review"])
     }
 }

@@ -57,6 +57,10 @@ enum Theme {
     static let badgePaddingHorizontal: CGFloat = 6
     static let badgePaddingVertical: CGFloat = 1
 
+    // MARK: Hover
+    static let hoverMaxWidth: CGFloat = 520
+    static let hoverMaxHeight: CGFloat = 360
+
     // MARK: Post sheet
     static let postSheetWidth: CGFloat = 620
     static let postSheetHeight: CGFloat = 640
@@ -122,6 +126,8 @@ enum Theme {
         static let draftMarkWidth: CGFloat = 16
         static let draftMark = NSColor.controlAccentColor
         static let threadMark = NSColor.secondaryLabelColor
+        /// How long the pointer rests on a symbol before its hover shows.
+        static let hoverDelay = Duration.milliseconds(600)
         static let gutterColumnGap: CGFloat = 6
 
         static let text = NSColor.textColor
@@ -148,7 +154,8 @@ enum Theme {
             switch kind {
             case .added: .systemGreen.withAlphaComponent(0.14)
             case .removed: .systemRed.withAlphaComponent(0.14)
-            case .hunkHeader: .quaternaryLabelColor.withAlphaComponent(0.12)
+            case .hunkHeader, .gap: .quaternaryLabelColor.withAlphaComponent(0.12)
+            case .filler: .quaternaryLabelColor.withAlphaComponent(0.05)
             case .context: nil
             }
         }
@@ -158,7 +165,7 @@ enum Theme {
             switch kind {
             case .added: .systemGreen
             case .removed: .systemRed
-            case .hunkHeader, .context: .tertiaryLabelColor
+            case .hunkHeader, .context, .gap, .filler: .tertiaryLabelColor
             }
         }
 

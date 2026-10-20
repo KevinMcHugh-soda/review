@@ -4,7 +4,7 @@ import SwiftUI
 /// A thread already on GitHub: where, its state, and what was said.
 struct ThreadCard: View {
     let thread: ReviewThread
-    let session: ReviewSession
+    @Bindable var session: ReviewSession
 
     private var isSelected: Bool { session.selectedThreadID == thread.id }
 
@@ -38,6 +38,7 @@ struct ThreadCard: View {
                     MarkdownText(markdown: comment.body)
                 }
             }
+            replyArea
         }
         .padding(Theme.gutter)
         .background(.background.secondary, in: .rect(cornerRadius: Theme.cardCornerRadius))
@@ -46,6 +47,40 @@ struct ThreadCard: View {
                 .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 1.5)
         }
         .opacity(thread.isResolved ? 0.7 : 1)
+    }
+
+    /// A reply field, and Resolve beside it. Both act on GitHub at once, as
+    /// its own buttons do.
+    private var replyArea: some View {
+        VStack(alignment: .leading, spacing: Theme.tightSpacing) {
+            HStack(alignment: .bottom, spacing: Theme.tightSpacing) {
+                TextField("Reply on GitHub", text: Binding(
+                    get: { session.threadReplies[thread.id] ?? "" },
+                    set: { session.threadReplies[thread.id] = $0 }
+                ), axis: .vertical)
+                .textFieldStyle(.roundedBorder)
+                .lineLimit(1...6)
+                Button("Reply") { Task { await session.reply(to: thread) } }
+                    .disabled((session.threadReplies[thread.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        || session.threadActions[thread.id] != nil)
+                    .help("Posts to GitHub now")
+            }
+            HStack(spacing: Theme.spacing) {
+                Button(thread.isResolved ? "Unresolve" : "Resolve") { Task { await session.toggleResolved(thread) } }
+                    .buttonStyle(.link)
+                    .disabled(session.threadActions[thread.id] != nil)
+                if session.threadActions[thread.id] != nil {
+                    ProgressView().controlSize(.mini)
+                }
+            }
+            .font(Theme.Fonts.meta)
+            if let error = session.threadErrors[thread.id] {
+                Text(error)
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        }
     }
 
     private var location: String {

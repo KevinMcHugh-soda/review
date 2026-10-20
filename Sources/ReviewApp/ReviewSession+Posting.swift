@@ -108,7 +108,7 @@ extension ReviewSession {
                 rows.indices.contains(index + 1) ? index + 1 : nil
             case .added, .removed:
                 mode == .file && (index == 0 || rows[index - 1].kind == .context) ? index : nil
-            case .context:
+            case .context, .gap, .filler:
                 nil
             }
         }
@@ -122,5 +122,38 @@ extension ReviewSession {
         guard let target else { return }
         cursor = Cursor(row: target, column: 0)
         pendingReveal = Reveal(row: target)
+    }
+}
+
+extension ReviewSession {
+    // MARK: Replying to and resolving threads
+
+    /// Posts a reply on GitHub — public at once — then reloads the threads.
+    func reply(to thread: ReviewThread) async {
+        let body = (threadReplies[thread.id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty, let publisher, threadActions[thread.id] == nil else { return }
+        threadActions[thread.id] = .replying
+        defer { threadActions[thread.id] = nil }
+        do {
+            try await publisher.reply(to: thread, body: body)
+            threadReplies[thread.id] = nil
+            threadErrors[thread.id] = nil
+            await loadThreads()
+        } catch {
+            threadErrors[thread.id] = "\(error)"
+        }
+    }
+
+    func toggleResolved(_ thread: ReviewThread) async {
+        guard let publisher, threadActions[thread.id] == nil else { return }
+        threadActions[thread.id] = .resolving
+        defer { threadActions[thread.id] = nil }
+        do {
+            try await publisher.setResolved(!thread.isResolved, thread)
+            threadErrors[thread.id] = nil
+            await loadThreads()
+        } catch {
+            threadErrors[thread.id] = "\(error)"
+        }
     }
 }

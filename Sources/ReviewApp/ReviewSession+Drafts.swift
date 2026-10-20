@@ -71,8 +71,8 @@ extension ReviewSession {
         guard let document else { return "Open a file first." }
         if document.source == .afterMerge { return "Comment in Diff view (⌘1): after-merge line numbers are not the PR's." }
         guard let rows = selectedRows ?? cursor.map({ $0.row...$0.row }) else { return "Select the lines to comment on." }
-        if rows.allSatisfy({ document.rows.indices.contains($0) && document.rows[$0].kind == .hunkHeader }) {
-            return "Select code lines, not a hunk header."
+        if rows.allSatisfy({ !document.rows.indices.contains($0) || !document.rows[$0].isCode }) {
+            return "Select lines of code."
         }
         return nil
     }
@@ -85,7 +85,7 @@ extension ReviewSession {
             return
         }
         guard let document, let review, let rows = selectedRows ?? cursor.map({ $0.row...$0.row }) else { return }
-        let selected = rows.filter { document.rows.indices.contains($0) }.map { document.rows[$0] }.filter { $0.kind != .hunkHeader }
+        let selected = rows.filter { document.rows.indices.contains($0) }.map { document.rows[$0] }.filter(\.isCode)
         let headLines = selected.compactMap(\.newLine)
         let side: Side = headLines.isEmpty ? .base : .head
         let lines = side == .head ? headLines : selected.compactMap(\.oldLine)
@@ -203,6 +203,7 @@ extension ReviewSession {
         updateDraft(id) { $0.conversation.append(ConversationTurn(author: .reviewer, text: question)) }
         followUps[id] = nil
         asks[id] = AskProgress()
+        AnswerNotifier.requestPermission()
         askTasks[id] = Task {
             await run(id) {
                 try await assistant.ask(about: draft, followUp: followUp, in: review, worktree: worktree)
@@ -211,8 +212,12 @@ extension ReviewSession {
                     draft.conversation.append(Self.turn(for: result))
                     if !result.sessionID.isEmpty { draft.claudeSessionID = result.sessionID }
                 }
+                self.notifyAnswered(draft: id, title: draft.anchor.description, answer: result.text, isError: result.isError)
             } fail: { message in
                 self.updateDraft(id) { $0.conversation.append(ConversationTurn(author: .claude, text: message, isError: true)) }
+                if message != "Stopped." {
+                    self.notifyAnswered(draft: id, title: draft.anchor.description, answer: message, isError: true)
+                }
             }
         }
     }
@@ -235,6 +240,7 @@ extension ReviewSession {
         ))
         followUps[overviewID] = nil
         asks[overviewID] = AskProgress()
+        AnswerNotifier.requestPermission()
         scheduleSave()
         askTasks[overviewID] = Task {
             await run(overviewID) {
@@ -245,11 +251,22 @@ extension ReviewSession {
                 self.notes.overview.append(Self.turn(for: result))
                 if !result.sessionID.isEmpty { self.notes.overviewSessionID = result.sessionID }
                 self.scheduleSave()
+                self.notifyAnswered(draft: nil, title: "All drafts", answer: result.text, isError: result.isError)
             } fail: { message in
                 self.notes.overview.append(ConversationTurn(author: .claude, text: message, isError: true))
                 self.scheduleSave()
             }
         }
+    }
+
+    /// A system notification for a finished answer, unless the reviewer is
+    /// already looking at it.
+    private func notifyAnswered(draft: UUID?, title: String, answer: String, isError: Bool) {
+        let watching = isSelectedInApp && isInspectorShown
+        AnswerNotifier.notify(
+            pullRequest: reference, draft: draft, title: "\(title) · \(reference)",
+            answer: answer, isError: isError, isBeingWatched: watching
+        )
     }
 
     func cancelAsk(_ id: UUID) {

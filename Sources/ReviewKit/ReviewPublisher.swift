@@ -60,4 +60,13 @@ public struct ReviewPublisher: Sendable {
     public func threads(for review: LoadedReview) async throws -> [ReviewThread] {
         try await github.reviewThreads(review.pullRequest.reference)
     }
+
+    /// Replies to a thread on GitHub. Public the moment it returns.
+    public func reply(to thread: ReviewThread, body: String) async throws {
+        try await github.reply(toThread: thread.id, body: body)
+    }
+
+    public func setResolved(_ isResolved: Bool, _ thread: ReviewThread) async throws {
+        try await github.setResolved(isResolved, thread: thread.id)
+    }
 }

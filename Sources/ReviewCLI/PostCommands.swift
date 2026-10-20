@@ -21,7 +21,7 @@ struct Threads: AsyncParsableCommand {
             let where_ = thread.lines.map { "\(thread.path):\($0.lowerBound == $0.upperBound ? "\($0.upperBound)" : "\($0.lowerBound)–\($0.upperBound)")" }
                 ?? "\(thread.path) (outdated, was line \(thread.originalLine ?? 0))"
             let state = [thread.isResolved ? "resolved" : nil, thread.side == .base ? "base" : nil].compactMap(\.self)
-            print("\(where_)\(state.isEmpty ? "" : "  [\(state.joined(separator: ", "))]")")
+            print("\(where_)\(state.isEmpty ? "" : "  [\(state.joined(separator: ", "))]")  \(thread.id)")
             for comment in thread.comments {
                 let firstLine = comment.body.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
                 print("    \(comment.author): \(firstLine.prefix(100))")
@@ -132,4 +132,61 @@ struct Post: AsyncParsableCommand {
             }
         }
     }
+}
+
+/// Replies to a review thread.
+struct Reply: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(abstract: "Reply to a review thread (ids from `review threads`).")
+
+    @Argument(help: "A pull request URL or owner/repo#123.")
+    var pullRequest: String
+
+    @Argument(help: "The thread's id.")
+    var thread: String
+
+    @Argument(help: "The reply, in Markdown.")
+    var body: String
+
+    @Flag(help: "Send it. Required: a reply is public at once.")
+    var yes = false
+
+    func run() async throws {
+        guard yes else { throw ValidationError("Add --yes to post the reply.") }
+        let (_, publisher, found) = try await resolveThread(pullRequest, thread)
+        try await publisher.reply(to: found, body: body)
+        print("Replied.")
+    }
+}
+
+/// Resolves or unresolves a review thread.
+struct Resolve: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(abstract: "Resolve a review thread, or --unresolve it.")
+
+    @Argument(help: "A pull request URL or owner/repo#123.")
+    var pullRequest: String
+
+    @Argument(help: "The thread's id.")
+    var thread: String
+
+    @Flag(help: "Mark it unresolved instead.")
+    var unresolve = false
+
+    func run() async throws {
+        let (_, publisher, found) = try await resolveThread(pullRequest, thread)
+        try await publisher.setResolved(!unresolve, found)
+        print(unresolve ? "Unresolved." : "Resolved.")
+    }
+}
+
+private func resolveThread(_ pullRequest: String, _ id: String) async throws -> (LoadedReview, ReviewPublisher, ReviewThread) {
+    let reference = try PullRequestReference(parsing: pullRequest)
+    let services = await AppServices.start()
+    guard let loader = services.loader, let publisher = services.publisher else {
+        throw ValidationError("git or gh is missing — run `review doctor`.")
+    }
+    let review = try await loader.load(reference)
+    guard let thread = try await publisher.threads(for: review).first(where: { $0.id == id }) else {
+        throw ValidationError("No thread \(id) on \(reference).")
+    }
+    return (review, publisher, thread)
 }

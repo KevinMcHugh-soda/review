@@ -48,6 +48,8 @@ final class ReviewSession {
     /// A file outside the PR's changes, shown because navigation landed in it.
     var externalFile: URL?
     var mode: CodeDocument.Mode = .diff
+    /// Gaps between hunks the reviewer has opened up, by file.
+    var expandedGaps: [String: Set<Int>] = [:]
 
     // Navigation state; see ReviewSession+Navigation.swift.
     var navigationState: NavigationState = .preparing
@@ -82,7 +84,17 @@ final class ReviewSession {
     var threads: [ReviewThread] = []
     var threadsError: String?
     var selectedThreadID: String?
+    /// Replies being typed, by thread id.
+    var threadReplies: [String: String] = [:]
+    var threadActions: [String: ThreadAction] = [:]
+    var threadErrors: [String: String] = [:]
+
+    enum ThreadAction {
+        case replying, resolving
+    }
     var isPostSheetShown = false
+    /// Whether this is the PR the window shows; kept by `AppModel`.
+    var isSelectedInApp = false
 
     /// Documents already built this session, keyed like `documentKey`.
     private var documents: [String: CodeDocument] = [:]
@@ -108,10 +120,25 @@ final class ReviewSession {
     /// Changes whenever the viewer must show something else; drives the
     /// detail column's `.task(id:)`, which cancels a superseded load.
     var documentKey: String? {
+        guard review != nil else { return nil }
+        if let externalFile { return "external:\(externalFile.path)" }
+        guard let scrollKey else { return nil }
+        let gaps = mode == .file ? "" : (expandedGaps[selectedFilePath ?? ""] ?? []).sorted().map(String.init).joined(separator: ",")
+        return "\(scrollKey):\(gaps)"
+    }
+
+    /// The file and mode being shown, without the expanded gaps: while it
+    /// stays the same, the viewer keeps its scroll position.
+    var scrollKey: String? {
         guard let review else { return nil }
         if let externalFile { return "external:\(externalFile.path)" }
         guard let selectedFilePath else { return nil }
         return "\(review.pullRequest.head.sha):\(selectedFilePath):\(mode.rawValue)"
+    }
+
+    func expandGap(_ gap: Int) {
+        guard let path = selectedFilePath else { return }
+        expandedGaps[path, default: []].insert(gap)
     }
 
     func load(with loader: ReviewLoader, services: AppServices) async {
@@ -163,7 +190,9 @@ final class ReviewSession {
         do {
             let document =
                 if let externalFile { try await LoadedReview.document(forFileAt: externalFile) }
-                else if let file = selectedFile { try await review.document(for: file, mode: mode) }
+                else if let file = selectedFile {
+                    try await review.document(for: file, mode: mode, expandedGaps: expandedGaps[file.path] ?? [])
+                }
                 else { CodeDocument(plainText: "", path: "") }
             guard !Task.isCancelled else { return }
             documents[key] = document

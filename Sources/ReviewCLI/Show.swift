@@ -83,6 +83,8 @@ struct Show: AsyncParsableCommand {
                 case .context: " "
                 case .added: "+"
                 case .removed: "-"
+                case .gap: "⋯"
+                case .filler: "."
                 }
             print("\(old.leftPad(width)) \(new.leftPad(width)) \(mark) \(row.text)")
             if spans, !row.spans.isEmpty {
