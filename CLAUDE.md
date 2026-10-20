@@ -53,10 +53,14 @@ not exist here, so never reach for it. `swift build` compiles; `build.sh` bundle
 * `./.build/debug/review show <pr> [path]` — loads a PR exactly as the app does, headless
 * **Look at UI changes.** `screencapture` from an agent shell sees only the desktop (no Screen
   Recording permission), so the app renders its own window instead:
-  `REVIEW_SNAPSHOT=/path/out.png build/Review.app/Contents/MacOS/ReviewApp --open <pr> --file <path> [--mode file]`
-  writes a PNG once loading settles and quits. Add `--navigate definition|references|callers|…
-  --line <head line> --column <utf-16 column>` to exercise navigation, or `--comment 70-75 --note "…"
-  --ask` to add a draft and ask Claude (costs a few cents). See `LaunchOptions.swift`.
+  `open -n --env REVIEW_SNAPSHOT=/path/out.png build/Review.app --args --open <pr> --file <path> [--mode diff|split|file]`
+  writes a PNG (plus `-sheet.png` / `-popover.png` when one is up) once loading settles and quits.
+  Launch through `open`, not by running the binary: run directly from an agent shell, the app
+  can come up with no window at all. Every option must be a `--flag value` pair — AppKit treats
+  a value without a flag as a file to open, and a launch that opens a file creates no window.
+  Options: `--navigate definition|references|callers|… --line <head line> --column <utf-16 column>`,
+  `--comment 70-75 --note "…" --ask` (asks Claude; costs a few cents), `--hover <line>:<column>`,
+  `--expand <gap>`, `--post-sheet`. See `LaunchOptions.swift`.
 * `review post <pr> --dry-run` prints where every saved draft lands and the exact request.
   **Never run `review post … --yes`, or press Post in a scripted app run, on someone else's PR** —
   it is public and cannot be unsent. `--post-sheet` opens the sheet without posting.

@@ -65,6 +65,16 @@ combined with `--jq`, so the pages are decoded in Swift. A deleted author
 comes back as `author: null` and shows as "ghost". Outdated threads keep
 `originalLine` and lose `line`; they are listed but not marked in the gutter.
 
+## Replying and resolving
+
+`addPullRequestReviewThreadReply` and `resolveReviewThread` /
+`unresolveReviewThread` (GraphQL, by thread id). A reply posts at once, as on
+GitHub's own Reply button. In the app, every thread card has a reply field and
+Resolve/Unresolve; on the CLI, `review reply <pr> <thread> <body> --yes` and
+`review resolve <pr> <thread> [--unresolve]`, with thread ids from
+`review threads`. **Not yet exercised against GitHub**, for the same reason as
+posting below.
+
 ## Not verified against GitHub
 
 The request has been checked by `review post --dry-run` and the sheet, but

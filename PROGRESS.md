@@ -258,19 +258,43 @@ full ids under a hostile `core.abbrev`.
 sidebar shows `#2397` for a PR until it loads (titles are not cached); inbox
 titles render in a quieter colour than open PRs, which may want a look.
 
+## After the plan
+
+**Built and verified:**
+
+- **Gaps between hunks** — "⋯ N unchanged lines" rows that expand on click,
+  keeping the scroll position. Rendered on sindresorhus/ky#881; tests check
+  every expanded line's numbers against both sides' files.
+- **Split view** (⌘2; File moved to ⌘3) — base left, head right, synchronised
+  vertical scrolling, filler rows so changes sit level, a one-column gutter per
+  side. Rendered on ky#881.
+- **Hover** — 0.6 s rest on a symbol shows the server's hover in a popover;
+  rendered on cobra#2397 (`CommandPath`'s signature and doc comment from
+  gopls). **⌘ underline** for jumpable symbols (not seen in a render — it needs
+  a real pointer).
+- **Replies and resolving** — in thread cards and as `review reply` /
+  `review resolve`.
+- **Notification when Claude answers**, with click-through to the draft.
+- **One window, always.** A single `Window` scene: one window at launch,
+  `review://` links land in it, including one that launches the app.
+
+**Not verified:**
+
+- **A real post, reply or resolve.** Creating a throwaway PR in the `review`
+  repo to test on was declined, so none has been sent. Options: a pending
+  review on any PR (visible only to you), or a throwaway PR you create.
+- **The notification on screen.** It needs the one-time permission prompt
+  answered by someone at the machine.
+
+**Tests: 100** (+1 opt-in live), including gap rows, expansion, the split
+layout, and added files.
+
 ## What next
 
-The plan's milestones are done. Candidates, roughly by value:
-
-1. **A first real post** — on a throwaway PR you own, or as a pending review.
-2. Expand context between hunks, and a side-by-side diff.
-3. Hover (already in `Navigator`), and a ⌘-hover underline for jumpable
-   symbols.
-4. Reply to and resolve existing threads; add drafts to a pending review via
-   GraphQL.
-5. Navigation on removed lines (a base worktree) and in the after-merge view
-   (a merge worktree).
-6. Sync viewed state with GitHub (`markFileAsViewed`).
+1. A first real post, reply and resolve.
+2. Navigation on removed lines (a base worktree) and in the after-merge view.
+3. Sync viewed state with GitHub (`markFileAsViewed`).
+4. Cache PR titles for the sidebar; the inbox's quieter title colour.
 
 ## Things that bit us
 
@@ -367,3 +391,29 @@ Swift snippet to a file and splice it in.
 **A URL-scheme launch cannot take `REVIEW_SNAPSHOT`.** `open review://…`
 starts the app without the shell's environment; verify by the saved open-PR
 list and the process count instead.
+
+**Running the app binary directly from an agent shell can give it no window.**
+Mid-session, every direct launch came up with a menu bar and nothing else,
+while `open build/Review.app` worked. Snapshot runs use
+`open -n --env REVIEW_SNAPSHOT=… build/Review.app --args …` now.
+
+**A launch argument without a flag is a file to open.** AppKit reads
+`-key value` pairs as defaults and treats a stray value as a document; a launch
+that opens a document creates no window. `--hover 73 62` did that; it is
+`--hover 73:62` now.
+
+**`WindowGroup` and `review://` links do not mix.** Without
+`handlesExternalEvents` every link opened a new window; on the scene,
+`handlesExternalEvents(matching:)` made plain launches open none; on the view,
+`preferring: ["*"]` made launches open two. A single `Window` scene with
+`onOpenURL` behaves: one window at launch, links land in it, a link that
+launches the app is handled once the model exists. Verified by counting the
+process's windows through `CGWindowListCopyWindowInfo`, which needs no
+permission.
+
+**Added files crashed the unified diff once gaps existed.** They have no gaps,
+and the gap list was indexed unguarded. A test on the fixture's added file
+caught it.
+
+**gopls separates a hover's signature and doc with `---`.** Rendered as text
+until MarkdownText learned horizontal rules.

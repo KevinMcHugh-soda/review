@@ -39,16 +39,40 @@ Diff backgrounds are drawn per line fragment, not as attributed-string
 backgrounds, so they span the full width rather than ending at the last
 character.
 
-## Two modes
+## Three modes
 
-The diff is the default.
+The diff is the default. ⌘1 Diff, ⌘2 Split, ⌘3 File.
 
 - **Diff** — unified to start. One text view, removed and added lines
   interleaved, a two-column old/new line-number gutter. Split (side-by-side)
   is a second pair of text views with synchronised scrolling; add it once
   unified is solid.
+- **Split** — side by side, base left and head right, one `CodePane` each,
+  scrolling together vertically and independently sideways. Within a hunk a
+  run of removed lines pairs row for row with the run of added lines after
+  it; the shorter side gets filler rows, so a line and its replacement sit
+  level. The right pane is the full document (navigation, comments, hover);
+  the left is for reading — navigation runs on head, and base-side comments
+  are made in the unified diff.
 - **After merge** — the whole file (see checkout-and-diff.md), with changed
-  lines marked in the gutter and removed lines available on hover.
+  lines marked in the gutter.
+
+### Gaps between hunks
+
+The unchanged runs a diff leaves out show as one row, "⋯ 67 unchanged
+lines" — before the first hunk, between hunks, and after the last. Clicking
+one expands it into numbered context lines (both sides' numbers, and
+navigable). Expansion is per file and per session; re-showing the same file
+and mode keeps the scroll position, so the code above an expanded gap does
+not move. Added and deleted files have no gaps — and the first version crashed
+on them, caught by a test.
+
+### Hover and the ⌘ underline
+
+Resting the pointer on a symbol for 0.6 s asks the language server for its
+hover and shows it in a popover, rendered as Markdown (code fences, rules).
+Holding ⌘ underlines the symbol under the pointer and shows a pointing hand —
+what ⌘-click would jump to.
 
 ## Navigation in the view
 

@@ -60,6 +60,17 @@ What is given up: the reviewer's own global `CLAUDE.md`, hooks and MCP
 servers do not apply to these turns. Answers stay advisory and never post
 themselves.
 
+## Notifications
+
+When an answer arrives, a system notification says so — title "Claude
+answered", the draft's location and PR, and the answer's first paragraph —
+unless the reviewer is already looking at it (app active, this PR selected,
+drafts inspector open). Clicking it brings the app forward on that PR with the
+draft selected. Errors notify too ("Claude couldn't answer"); a Stop does not.
+Permission is asked the first time Claude is asked anything, not at launch.
+Built on `UNUserNotificationCenter`; **not yet seen on screen** — the
+permission prompt and the banner need someone at the machine.
+
 ## Costs and limits
 
 Each turn reports its cost in the `result` event; it is shown per turn. The
