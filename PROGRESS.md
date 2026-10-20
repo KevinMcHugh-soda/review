@@ -473,3 +473,8 @@ only `scanner.c`; `parser.c` lives on `gh-pages`. Pinned there by revision.
 **Neovim queries use Lua patterns in `#match?`.** `%d` matched nothing as a
 regular expression, so SQL numbers came out as strings until the vendor script
 rewrote it.
+
+**`total_cost_usd` is not a bill.** `claude -p` reports it on a subscription
+too, as an estimate at API prices. Shown as "$0.11", it made the reviewer ask
+whether the app had switched to the API. It is shown only for API-key
+sessions now.

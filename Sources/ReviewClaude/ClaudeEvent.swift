@@ -19,7 +19,14 @@ public struct ClaudeResult: Hashable, Sendable {
     /// "let me look at…" narration between tool calls.
     public let text: String
     public let sessionID: String
+    /// Claude Code's `total_cost_usd`: what the turn would cost at API prices.
+    /// Reported on every turn, including on a subscription, where it is an
+    /// estimate rather than a charge — see `isBilledToAPIKey`.
     public let costUSD: Double?
+    /// The session used an API key, so `costUSD` was actually charged. False
+    /// for a Claude subscription login (`apiKeySource: "none"`), whose usage
+    /// counts against the plan instead.
+    public var isBilledToAPIKey = false
     public let isError: Bool
     /// Tool uses the permission layer refused — a read outside the
     /// directories, for instance.

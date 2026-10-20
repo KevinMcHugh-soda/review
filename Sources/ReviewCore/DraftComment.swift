@@ -105,18 +105,31 @@ public struct ConversationTurn: Codable, Hashable, Sendable, Identifiable {
     public let author: Author
     public let text: String
     public let date: Date
-    /// What the turn cost, as Claude Code reported it.
+    /// Claude Code's estimate of the turn at API prices.
     public let costUSD: Double?
+    /// The turn ran on an API key, so `costUSD` was charged. Nil for turns
+    /// saved before this was recorded, and false on a subscription — both
+    /// mean the cost is not shown.
+    public let isBilledToAPIKey: Bool?
     /// Claude finished with an error; `text` says what went wrong.
     public let isError: Bool
 
-    public init(author: Author, text: String, date: Date = .now, costUSD: Double? = nil, isError: Bool = false) {
+    public init(
+        author: Author, text: String, date: Date = .now, costUSD: Double? = nil,
+        isBilledToAPIKey: Bool? = nil, isError: Bool = false
+    ) {
         id = UUID()
         self.author = author
         self.text = text
         self.date = date
         self.costUSD = costUSD
+        self.isBilledToAPIKey = isBilledToAPIKey
         self.isError = isError
+    }
+
+    /// What to show as a price: only money actually spent.
+    public var chargedUSD: Double? {
+        isBilledToAPIKey == true ? costUSD : nil
     }
 }
 

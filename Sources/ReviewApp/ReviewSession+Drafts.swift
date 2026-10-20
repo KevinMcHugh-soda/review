@@ -327,7 +327,10 @@ extension ReviewSession {
         if !result.deniedTools.isEmpty {
             text += "\n\n_(Refused: \(result.deniedTools.joined(separator: ", ")) outside the checkout.)_"
         }
-        return ConversationTurn(author: .claude, text: text, costUSD: result.costUSD, isError: result.isError)
+        return ConversationTurn(
+            author: .claude, text: text, costUSD: result.costUSD,
+            isBilledToAPIKey: result.isBilledToAPIKey, isError: result.isError
+        )
     }
 }
 
