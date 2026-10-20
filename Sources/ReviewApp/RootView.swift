@@ -19,9 +19,20 @@ struct RootView: View {
                                 .contextMenu {
                                     Link("Open on GitHub", destination: reference.webURL)
                                     Divider()
+                                    // The keyboard and menu way to do what a drag does.
+                                    Button("Move to Top") { model.moveOpenPullRequestToTop(reference) }
+                                        .disabled(model.pullRequests.first == reference)
+                                    Button("Move Up") { model.moveOpenPullRequest(reference, by: -1) }
+                                        .disabled(model.pullRequests.first == reference)
+                                    Button("Move Down") { model.moveOpenPullRequest(reference, by: 1) }
+                                        .disabled(model.pullRequests.last == reference)
+                                    Divider()
                                     Button("Close") { model.close(reference) }
                                 }
                         }
+                        // Drag to reorder; the order is saved and survives a
+                        // relaunch.
+                        .onMove { model.moveOpenPullRequests(fromOffsets: $0, toOffset: $1) }
                     }
                 }
                 Section {

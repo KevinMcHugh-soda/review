@@ -128,6 +128,24 @@ final class AppModel {
         saveOpenPullRequests()
     }
 
+    // MARK: Reordering the open list
+
+    /// A drag within the sidebar's Open section.
+    func moveOpenPullRequests(fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        pullRequests = ListReordering.moving(pullRequests, fromOffsets: offsets, toOffset: destination)
+        saveOpenPullRequests()
+    }
+
+    /// Move Up / Move Down from a row's menu.
+    func moveOpenPullRequest(_ reference: PullRequestReference, by offset: Int) {
+        pullRequests = ListReordering.moving(reference, by: offset, in: pullRequests)
+        saveOpenPullRequests()
+    }
+
+    func moveOpenPullRequestToTop(_ reference: PullRequestReference) {
+        moveOpenPullRequest(reference, by: -pullRequests.count)
+    }
+
     /// The sidebar's selection changed: an inbox item is opened on selection.
     func didSelect(_ reference: PullRequestReference?) {
         guard let reference, !pullRequests.contains(reference) else { return }

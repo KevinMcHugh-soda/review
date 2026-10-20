@@ -312,6 +312,18 @@ spf13/cobra#2337 (a GitHub Actions workflow); tests cover keys, values,
 numbers, booleans, comments (JSONC), anchors, and each language's precedence
 (flipping JSON's makes its test fail). **Tests: 107.**
 
+## Reordering open PRs
+
+Drag rows in the sidebar's Open section, or use Move to Top / Move Up / Move
+Down in a row's menu; the order is saved with the open list. The move rules
+(SwiftUI's `onMove` contract, where the destination counts positions before
+removal) are in `ListReordering` with tests. **Not exercised by hand** — a drag
+needs a real pointer; the sidebar was rendered to check it still draws.
+
+Also seen for the first time on a real PR (a harmony PR the reviewer had
+open): generated files from `.gitattributes` at the bottom of the file list,
+tagged, and viewed files folded to their headers in the all-files scroll.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
