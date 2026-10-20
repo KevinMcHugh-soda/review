@@ -14,7 +14,7 @@ struct ToolStatusList: View {
                         .foregroundStyle(status.isUsable ? .green : (status.tool.isRequired ? .red : .secondary))
                         .accessibilityLabel(status.isUsable ? "Available" : "Unavailable")
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(status.tool.executableName)
+                        Text(status.tool.displayName)
                             .font(Theme.Fonts.rowTitle)
                         Text(detail(for: status))
                             .font(Theme.Fonts.meta)

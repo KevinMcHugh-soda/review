@@ -1,4 +1,5 @@
 import Foundation
+import ReviewLSP
 import ReviewProcess
 
 /// Whether one tool is installed and usable.
@@ -34,6 +35,11 @@ public struct Doctor: Sendable {
     }
 
     func status(of tool: Tool) async -> ToolStatus {
+        if tool == .typeScriptServer {
+            // Which program serves TypeScript is a decision, not a lookup.
+            let command = await ServerCommand.resolve(.typeScript, environment: environment)
+            return ToolStatus(tool: tool, location: command?.executable, version: command?.summary, problem: nil)
+        }
         guard let location = environment.locate(tool.executableName) else {
             return ToolStatus(tool: tool, location: nil, version: nil, problem: nil)
         }

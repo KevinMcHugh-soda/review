@@ -29,9 +29,26 @@ public struct CodeDocument: Sendable {
         case file
     }
 
+    /// Where the text came from, which decides whether navigation can work
+    /// on it: the servers run on a checkout of the PR's head.
+    public enum Source: Sendable, Hashable {
+        /// The diff, or the file at head.
+        case pullRequest
+        /// The file as it will be after merging into a base that has moved,
+        /// where it differs from head. Line numbers do not match the head
+        /// checkout, so navigation is off.
+        case afterMerge
+        /// A file outside the PR's changes: a definition in another file, the
+        /// standard library, the module cache.
+        case other
+    }
+
     public let rows: [Row]
     /// The file has no text to show: binary, or empty on both sides.
     public let isBinary: Bool
+    public private(set) var source: Source = .pullRequest
+
+    public var isNavigable: Bool { source != .afterMerge }
 
     /// The widest line number in either column, for sizing the gutter.
     public var maxLineNumber: Int {
@@ -59,6 +76,27 @@ public struct CodeDocument: Sendable {
         case .file:
             rows = Self.fileRows(file, oldText: oldText, newText: newText, old: old, new: new)
         }
+    }
+
+    /// A file shown whole with nothing marked — one the PR does not change.
+    public init(plainText text: String, path: String) {
+        isBinary = false
+        source = .other
+        let lines = HighlightedLines.highlighting(text, as: SyntaxLanguage(path: path))
+        rows = Self.lines(of: text).enumerated().map { offset, line in
+            Row(kind: .context, text: line, oldLine: nil, newLine: offset + 1, spans: lines.spans(onLine: offset + 1))
+        }
+    }
+
+    func from(_ source: Source) -> Self {
+        var copy = self
+        copy.source = source
+        return copy
+    }
+
+    /// The row showing a 1-based line at head (or in a plain file).
+    public func row(forNewLine line: Int) -> Int? {
+        rows.firstIndex { $0.newLine == line }
     }
 
     static func diffRows(_ file: FileDiff, old: HighlightedLines?, new: HighlightedLines?) -> [Row] {

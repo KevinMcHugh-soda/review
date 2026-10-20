@@ -51,9 +51,9 @@ make cli && ./.build/debug/review doctor
    environment, tool doctor, signing
 2. ✅ **Read a pull request** — fetch with `gh`, managed blobless clone,
    file list, code viewer, diff and whole-file modes, tree-sitter highlighting
-3. **Navigate** — worktrees and language servers per worktree; ⌘-click to
-   definition and type definition, find references, incoming calls, hover;
-   back/forward; after-merge via `git merge-tree`
+3. ✅ **Navigate** — a worktree per PR and language servers on it; ⌘-click to
+   definition and type definition, find references, implementations and
+   callers; back/forward; after-merge via `git merge-tree`
 4. **Draft and ask** — draft comments on lines and ranges, stored locally;
    ask Claude about one draft or all of them, with follow-ups
 5. **Post** — existing review threads shown inline; drafts become a pending

@@ -122,7 +122,7 @@ struct FixtureRepository {
 }
 
 /// Runs fixture-building commands in one directory.
-private struct Shell {
+struct Shell {
     let directory: URL
     let environment: [String: String]
 

@@ -88,4 +88,49 @@ public struct CheckoutStore: Sendable {
             }
         }
     }
+
+    public func worktreePath(for reference: PullRequestReference) -> URL {
+        root.appendingPathComponent("worktrees", isDirectory: true)
+            .appendingPathComponent(reference.owner, isDirectory: true)
+            .appendingPathComponent(reference.repository, isDirectory: true)
+            .appendingPathComponent(String(reference.number), isDirectory: true)
+            .appendingPathComponent("head", isDirectory: true)
+    }
+
+    /// A checkout of the PR's head for the language servers, moved to the
+    /// current head if the PR has gained commits since it was made.
+    ///
+    /// Detached, so no branch name collides across PRs, and forced, because
+    /// nobody edits these: anything that differs from the commit is ours to
+    /// overwrite. Returned with symlinks resolved, so it compares equal to the
+    /// paths servers report.
+    public func ensureWorktree(for pullRequest: PullRequest, repository: URL) async throws -> URL {
+        let path = worktreePath(for: pullRequest.reference)
+        let fileManager = FileManager.default
+        let sha = pullRequest.head.sha
+
+        if fileManager.fileExists(atPath: path.appendingPathComponent(".git").path) {
+            let current = try? await git.run(["rev-parse", "HEAD"], in: path)
+                .stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if current != sha {
+                try await git.run(["checkout", "--quiet", "--force", "--detach", sha], in: path)
+            }
+        } else {
+            try fileManager.createDirectory(at: path.deletingLastPathComponent(), withIntermediateDirectories: true)
+            // A worktree deleted by hand leaves a registration behind that
+            // makes `worktree add` refuse the path.
+            try await git.run(["worktree", "prune"], in: repository)
+            try await git.run(
+                ["worktree", "add", "--quiet", "--force", "--detach", path.path, sha],
+                in: repository,
+                timeout: .seconds(1800)
+            )
+        }
+        return path.resolvingSymlinksInPath()
+    }
+
+    public func removeWorktree(for reference: PullRequestReference, repository: URL) async {
+        let path = worktreePath(for: reference)
+        _ = try? await git.run(["worktree", "remove", "--force", path.path], in: repository)
+    }
 }

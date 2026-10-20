@@ -29,11 +29,12 @@ ReviewProcess    Subprocess, ToolEnvironment. The only target that spawns.
   ReviewGit      GitClient (pinned diff options), CheckoutStore clones.    ✅ M2
   ReviewGitHub   gh api: PR metadata; later review threads, posting.       ✅ M2, M5
   ReviewSyntax   tree-sitter highlighting, vendored queries.               ✅ M2
-  ReviewLSP      JSON-RPC over stdio; one server per worktree+language.    (M3)
+  ReviewLSP      JSON-RPC over stdio; LanguageServer; ServerCommand picks
+                 gopls or a TypeScript server.                             ✅ M3
   ReviewClaude   claude -p with stream-json; one session per thread.       (M4)
   ReviewStore    GRDB: reviews, drafts, Claude transcripts.                (M4)
     ReviewKit    ReviewLoader, LoadedReview, CodeDocument (the viewer's
-                 rows), Doctor. The facade both frontends consume.
+                 rows), Navigator, Doctor. The facade both frontends consume.
       ReviewApp  SwiftUI views, @Observable models, the NSTextView wrapper.
       ReviewCLI  ArgumentParser commands. Product name: `review`.
 ```
@@ -86,8 +87,7 @@ Two kinds of child:
 ```
 ~/Library/Application Support/Review/
   repos/<owner>/<repo>.git           managed clone, shared by every PR in that repo
-  worktrees/<owner>/<repo>/<n>/head  the PR head, detached              (M3)
-  worktrees/<owner>/<repo>/<n>/merge the after-merge tree, when base has moved (M3)
+  worktrees/<owner>/<repo>/<n>/head  the PR head, detached, for the servers
   review.sqlite                      drafts, Claude transcripts, viewed files (M4)
 ```
 

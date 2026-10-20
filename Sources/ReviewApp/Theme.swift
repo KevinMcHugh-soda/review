@@ -34,6 +34,15 @@ enum Theme {
     static let filesIdealWidth: CGFloat = 300
     static let filesMaxWidth: CGFloat = 480
 
+    // MARK: Results panel
+    static let resultsMinHeight: CGFloat = 120
+    static let resultsIdealHeight: CGFloat = 220
+    static let resultsMaxHeight: CGFloat = 600
+    /// The divider's drag target, much taller than the hairline it draws.
+    static let dividerHitHeight: CGFloat = 8
+    /// Room for a four-digit line number in a result row.
+    static let resultLineNumberWidth: CGFloat = 36
+
     // MARK: Panes
     /// Standard horizontal inset for pane content.
     static let gutter: CGFloat = 12
@@ -53,9 +62,13 @@ enum Theme {
         static let meta = Font.caption
         /// A file's +/− counts: tabular figures so a column of them aligns.
         static let counts = Font.caption.monospacedDigit().weight(.medium)
-        /// Source code. Monospaced because alignment and exact characters
-        /// matter; the code viewer (M2) will take its size from here.
+        /// Source code in SwiftUI views; the code viewer itself uses
+        /// `Code.font`.
         static let code = Font.system(.body, design: .monospaced)
+        /// Code in result lists, a step down so a row stays one line.
+        static let codeSmall = Font.system(.callout, design: .monospaced)
+        /// A panel's header: the results panel's "References · 3 results".
+        static let panelTitle = Font.callout.weight(.semibold)
     }
 
     // MARK: Code

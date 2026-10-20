@@ -13,6 +13,10 @@ final class CodeTextView: NSTextView {
     private(set) var rowStarts: [Int] = []
     private(set) var rows: [CodeDocument.Row] = []
 
+    /// ⌘-click and the context menu's navigation items. The character index
+    /// is in the text view's string.
+    var onNavigate: ((NavigationAction, Int) -> Void)?
+
     static func make() -> CodeTextView {
         let storage = NSTextStorage()
         let layoutManager = NSLayoutManager()
@@ -67,6 +71,79 @@ final class CodeTextView: NSTextView {
             if rowStarts[middle] <= offset { low = middle } else { high = middle - 1 }
         }
         return low
+    }
+
+    /// A character index as a row and a column within it.
+    func cursor(at index: Int) -> Cursor? {
+        guard !rowStarts.isEmpty else { return nil }
+        let row = row(containing: index)
+        return Cursor(row: row, column: index - rowStarts[row])
+    }
+
+    /// Scrolls a row to the middle of the view, selects the range and flashes
+    /// it, so the eye finds where a jump landed.
+    func reveal(row: Int, column: Int, length: Int) {
+        guard rowStarts.indices.contains(row) else { return }
+        let rowLength = (rows[row].text as NSString).length
+        let start = rowStarts[row] + min(column, rowLength)
+        let range = NSRange(location: start, length: min(length, rowLength - min(column, rowLength)))
+        if let layoutManager, let textContainer {
+            // Everything up to the target, not just the target: with
+            // non-contiguous layout the lines above are only estimated until
+            // laid out, and the real heights would push the target off screen
+            // after it was centred.
+            layoutManager.ensureLayout(forCharacterRange: NSRange(location: 0, length: rowStarts[row] + rowLength))
+            let glyphs = layoutManager.glyphRange(
+                forCharacterRange: NSRange(location: rowStarts[row], length: max(rowLength, 1)), actualCharacterRange: nil
+            )
+            var rect = layoutManager.boundingRect(forGlyphRange: glyphs, in: textContainer)
+            rect.origin.y += textContainerOrigin.y
+            let visible = enclosingScrollView?.contentView.bounds.height ?? rect.height
+            rect.origin.y -= (visible - rect.height) / 2
+            rect.size.height = visible
+            rect.origin.x = 0
+            scrollToVisible(rect)
+        }
+        setSelectedRange(range)
+        if range.length > 0 { showFindIndicator(for: range) }
+        window?.makeFirstResponder(self)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // ⌘-click jumps to the definition, as in every editor.
+        guard event.modifierFlags.contains(.command) else {
+            super.mouseDown(with: event)
+            return
+        }
+        let index = characterIndexForInsertion(at: convert(event.locationInWindow, from: nil))
+        setSelectedRange(NSRange(location: index, length: 0))
+        onNavigate?(.definition, index)
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event) ?? NSMenu()
+        let index = characterIndexForInsertion(at: convert(event.locationInWindow, from: nil))
+        // Right-clicking outside the selection moves the cursor there, so
+        // the menu acts on what was clicked.
+        if !NSLocationInRange(index, selectedRange()) || selectedRange().length == 0 {
+            setSelectedRange(NSRange(location: index, length: 0))
+        }
+        let items = NavigationAction.allCases.map { action in
+            let item = NSMenuItem(title: action.title, action: #selector(navigate(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = action.rawValue
+            return item
+        }
+        for (offset, item) in items.enumerated() {
+            menu.insertItem(item, at: offset)
+        }
+        menu.insertItem(.separator(), at: items.count)
+        return menu
+    }
+
+    @objc private func navigate(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let action = NavigationAction(rawValue: raw) else { return }
+        onNavigate?(action, selectedRange().location)
     }
 
     /// Visible rows and their line rects, in this view's coordinates.

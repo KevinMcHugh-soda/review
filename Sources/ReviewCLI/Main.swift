@@ -35,7 +35,7 @@ struct Doctor: AsyncParsableCommand {
         let statuses = await services.doctor.check()
         for status in statuses {
             let mark = if status.isUsable { "✓" } else if status.tool.isRequired { "✗" } else { "–" }
-            print("\(mark) \(status.tool.executableName)")
+            print("\(mark) \(status.tool.displayName)")
             if let location = status.location {
                 print("    \(location.path)")
             }

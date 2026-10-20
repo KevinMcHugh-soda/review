@@ -50,6 +50,21 @@ The diff is the default.
 - **After merge** — the whole file (see checkout-and-diff.md), with changed
   lines marked in the gutter and removed lines available on hover.
 
+## Navigation in the view
+
+⌘-click is Jump to Definition; the context menu and the Navigate menu offer
+the rest, with Xcode's shortcuts (⌃⌘J, ⌃⇧⌘J, ⌃⌘R, ⌃⌘I, ⌃⇧⌘H; back/forward
+⌃⌘← / ⌃⌘→). Results — references, implementations, callers — open in a
+resizable panel below the code. A jump into a changed file stays in Diff if
+the line is in a hunk and switches to the whole file if not; anywhere else
+opens as a plain file, labelled "Not changed in this PR" or "Outside the
+repository".
+
+**Revealing a line lays out everything above it first.** With
+non-contiguous layout, lines not yet laid out have estimated heights; centring
+on the target and then letting real layout happen pushed it ten lines off
+screen.
+
 ## Positions
 
 LSP positions are `(line, character)` where character counts **UTF-16 code

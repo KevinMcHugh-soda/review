@@ -143,7 +143,9 @@ struct CheckoutAndDiffTests {
         let patch = try await git.diff(from: mergeBase, to: fixture.headSHA, in: repository)
         return LoadedReview(
             pullRequest: fixture.pullRequest, mergeBase: mergeBase,
-            files: try UnifiedDiffParser.parse(patch), repository: repository, git: git
+            files: try UnifiedDiffParser.parse(patch),
+            merge: try await git.mergeTree(base: fixture.baseSHA, head: fixture.headSHA, in: repository),
+            repository: repository, git: git
         )
     }
 }

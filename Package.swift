@@ -50,18 +50,21 @@ let package = Package(
                 .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
             ]
         ),
+        // JSON-RPC to gopls and the TypeScript servers.
+        .target(name: "ReviewLSP", dependencies: ["ReviewProcess"]),
         // The facade both frontends consume. Still no SwiftUI.
         .target(
             name: "ReviewKit",
             dependencies: [
                 "ReviewCore", "ReviewProcess", "ReviewDiff", "ReviewGit", "ReviewGitHub", "ReviewSyntax",
+                "ReviewLSP",
             ]
         ),
 
         // Frontends.
         .executableTarget(
             name: "ReviewApp",
-            dependencies: ["ReviewKit", "ReviewCore", "ReviewProcess", "ReviewDiff", "ReviewSyntax"],
+            dependencies: ["ReviewKit", "ReviewCore", "ReviewProcess", "ReviewDiff", "ReviewSyntax", "ReviewLSP", "ReviewGit"],
             path: "Sources/ReviewApp"
         ),
         .executableTarget(
@@ -78,11 +81,16 @@ let package = Package(
         .testTarget(name: "ReviewProcessTests", dependencies: ["ReviewProcess"]),
         .testTarget(name: "ReviewDiffTests", dependencies: ["ReviewDiff"]),
         .testTarget(name: "ReviewSyntaxTests", dependencies: ["ReviewSyntax"]),
+        // Includes tests against the real gopls and typescript-language-server,
+        // skipped when either is not installed.
+        .testTarget(name: "ReviewLSPTests", dependencies: ["ReviewLSP", "ReviewProcess"]),
         // Real git against throwaway local repositories, end to end through
         // clone, fetch, diff, parse and the viewer's rows.
         .testTarget(
             name: "ReviewKitTests",
-            dependencies: ["ReviewKit", "ReviewCore", "ReviewDiff", "ReviewGit", "ReviewProcess", "ReviewSyntax"]
+            dependencies: [
+                "ReviewKit", "ReviewCore", "ReviewDiff", "ReviewGit", "ReviewProcess", "ReviewSyntax", "ReviewLSP",
+            ]
         ),
     ],
     swiftLanguageModes: [.v6]

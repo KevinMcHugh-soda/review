@@ -90,12 +90,54 @@ it.
 file tree for large PRs, light-mode visual check, after-merge via
 `git merge-tree` (M3, with worktrees).
 
-## Next: milestone 3 — navigate
+## Milestone 3 — navigate ✅
 
-Worktrees for head (and merge, when the base has moved), then `ReviewLSP`:
-the JSON-RPC client, gopls and typescript-language-server per worktree,
-⌘-click to definition, find references and incoming calls in a panel below
-the code. See plans/lsp.md.
+⌘-click to a definition, find references, implementations and callers,
+back and forward, for Go and TypeScript, against a checkout of the PR's head.
+Whole-file mode now shows the real after-merge text when the base has moved.
+
+**Verified in the app** (scripted with `--navigate`, rendered with
+`REVIEW_SNAPSHOT`):
+
+- spf13/cobra#2397: Jump to Definition on `cmd.CommandPath()` in an added
+  line → `command.go:1465`, a file the PR does not change, centred and
+  selected, header "Not changed in this PR", Back enabled.
+- spf13/cobra#2397: Find Callers on the new `NoDuplicateArgs` → its four new
+  tests, each expandable.
+- sindresorhus/ky#881: Find References on `previousChunk` → 5 results in
+  `body.ts` with their lines, through TypeScript 7's native server.
+
+**What exists:**
+
+- `ReviewLSP`: `LSPConnection`, `LanguageServer`, `ServerCommand`,
+  `JSONValue`, framing — see plans/lsp.md
+- `ReviewGit`: `ensureWorktree` (made after the PR opens, moved when it gains
+  commits), `mergeTree`, path-limited diffs
+- `ReviewKit`: `Navigator`; `CodeDocument` sources (`pullRequest`,
+  `afterMerge`, `other`) and plain-file documents; `LocationSnippets`
+- `review doctor` reports which TypeScript server will run
+  ("TypeScript 7.0.2 (native)")
+- App: ⌘-click, context menu, Navigate menu with Xcode's shortcuts, results
+  panel with a draggable divider, lazily expanding callers tree, Back/Forward
+  in the toolbar, a file header, an after-merge banner, a status line showing
+  each server's state and navigation's last message
+
+**Tests: 65**, stable across three runs: 9 framing/decoding, 6 against real
+gopls, 3 against the real TypeScript server, and 3 end-to-end in ReviewKit
+(worktree follows head; definition from a diff row through `Navigator`;
+after-merge text and marks).
+
+**Not yet:** hover (implemented in `Navigator`, no UI), a ⌘-hover underline,
+navigation on removed lines (needs a base checkout), the
+typescript-language-server fallback is untested here, and the session's
+navigation logic has no unit tests — it was exercised through the app.
+
+## Next: milestone 4 — draft and ask
+
+Draft comments on lines and ranges, stored with GRDB; ask Claude about one or
+all of them through `claude -p`, read-only, with follow-ups. Verify first that
+`--add-dir` does not load the worktree's `CLAUDE.md`. See
+plans/claude-integration.md.
 
 ## Things that bit us
 
@@ -136,3 +178,21 @@ Set it on the `NavigationSplitView`.
 
 **Creating sessions inside a view body mutates observed state mid-update.**
 Sessions are made when a PR is opened; lookups are read-only.
+
+**TypeScript 7 has no tsserver.** The global `typescript@7` is the native
+rewrite; typescript-language-server failed `initialize` with "Could not find
+a valid TypeScript installation". TS 7's `tsc --lsp --stdio` is a real LSP
+server and is now preferred.
+
+**SIGPIPE from a dead language server would kill the app.** Ignored
+process-wide when a connection starts.
+
+**An actor's `let` properties are isolated outside their module.** Mark them
+`nonisolated let` when another module reads them synchronously.
+
+**Centring a jump target before the lines above it are laid out misses.**
+Non-contiguous layout estimates their heights; lay out up to the target first.
+
+**`textViewDidChangeSelection` fires during `updateNSView`.** Writing the
+cursor into observed state from there is a mutation mid-update; it is
+deferred to the next turn of the run loop.

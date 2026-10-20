@@ -28,7 +28,14 @@ explain.
   Fetches name `origin`, never the URL: a partial clone applies its blob
   filter only when fetching from its promisor remote.
 - **Contents** for the viewer come from `git cat-file blob <sha>:<path>` —
-  no worktree is needed to read a PR, only to navigate one (M3).
+  no worktree is needed to read a PR, only to navigate one.
+- **Worktree** of head, made in the background after the PR opens, with
+  `worktree add --detach --force`; moved with `checkout --force --detach`
+  when the PR gains commits. `worktree prune` first, because a worktree
+  deleted by hand leaves a registration that blocks re-adding the path. For a
+  blobless clone this is when every file at head is fetched, so it is the
+  slow step on a large repository; navigation says "Checking out…" until
+  then.
 - **Worktree** with `git worktree add --detach <path> <head-sha>`. Detached,
   so no branch names collide across PRs. Removed when the PR is closed in the
   app; `git worktree prune` on launch tidies up after a crash.
@@ -61,16 +68,21 @@ context, rather than hunks.
 When the base branch has not moved since the PR branched, that is simply the
 head. When it has, the head is stale: it lacks whatever landed on main since.
 `git merge-tree --write-tree <base> <head>` (git ≥ 2.38; Apple's git is 2.39)
-computes the real merge result without touching any working tree. The app
-checks out that tree as the `merge` worktree so navigation works on it too,
-and shows a banner when the merge would conflict — in which case it falls back
-to head and says so.
+computes the real merge result without touching any working tree, and its
+tree id reads like a commit: `cat-file blob <tree>:<path>`. No commit is made,
+so no committer identity is needed, and no second checkout either.
+
+**As built:** whole-file mode uses the merge tree only for files where the
+merged text differs from head — i.e. the base changed them too. Their marks
+come from diffing the base tip against the merge tree, which is exactly what
+merging adds, numbered as the merged file. A banner says so. Navigation is
+off in that view because its line numbers no longer match the head checkout
+the servers run on; Diff view (⌘1) navigates. A conflicted merge falls back to
+head.
 
 **Decided:** the diff is the default mode; after-merge is one click away.
 
-**As built in M2,** the File mode shows the file at head. The merge-tree
-result arrives with worktrees in M3; until then File is exactly right
-whenever the base has not touched the same file.
+
 
 ## Untrusted code on disk
 

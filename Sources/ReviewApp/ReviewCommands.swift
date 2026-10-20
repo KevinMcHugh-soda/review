@@ -36,5 +36,22 @@ struct ReviewCommands: Commands {
                 .disabled(session?.review == nil)
             Divider()
         }
+        CommandMenu("Navigate") {
+            ForEach(NavigationAction.allCases) { action in
+                Button(action.title) {
+                    guard let session else { return }
+                    Task { await session.perform(action) }
+                }
+                .keyboardShortcut(action.shortcut)
+                .disabled(session?.navigationState != .ready)
+            }
+            Divider()
+            Button("Back") { session?.goBack() }
+                .keyboardShortcut(.leftArrow, modifiers: [.control, .command])
+                .disabled(session?.canGoBack != true)
+            Button("Forward") { session?.goForward() }
+                .keyboardShortcut(.rightArrow, modifiers: [.control, .command])
+                .disabled(session?.canGoForward != true)
+        }
     }
 }

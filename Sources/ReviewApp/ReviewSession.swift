@@ -3,8 +3,11 @@ import Observation
 import ReviewCore
 import ReviewDiff
 import ReviewKit
+import ReviewLSP
+import ReviewProcess
 
-/// One open pull request: loading it, the file being looked at, and how.
+/// One open pull request: loading it, the file being looked at and how, and
+/// navigating its code. Navigation lives in `ReviewSession+Navigation.swift`.
 @Observable
 @MainActor
 final class ReviewSession {
@@ -21,14 +24,43 @@ final class ReviewSession {
         case failed(String)
     }
 
+    /// Whether ⌘-click and friends work yet. They need a checkout, which can
+    /// take a while for a large repository the first time.
+    enum NavigationState: Equatable {
+        case preparing
+        case ready
+        case unavailable(String)
+    }
+
     let reference: PullRequestReference
     private(set) var phase: Phase = .loading(nil)
     private(set) var documentState: DocumentState = .idle
 
     /// Whether `load` has ever run, so re-selecting the PR does not refetch.
     private(set) var hasStarted = false
-    var selectedFilePath: String?
+    /// The changed file being shown. Picking one in the list also leaves any
+    /// file that navigation had opened.
+    var selectedFilePath: String? {
+        didSet {
+            if selectedFilePath != nil, selectedFilePath != oldValue { externalFile = nil }
+        }
+    }
+    /// A file outside the PR's changes, shown because navigation landed in it.
+    var externalFile: URL?
     var mode: CodeDocument.Mode = .diff
+
+    // Navigation state; see ReviewSession+Navigation.swift.
+    var navigationState: NavigationState = .preparing
+    var navigator: Navigator?
+    var worktree: URL?
+    var serverStatus: [ServerKind: LanguageServer.Status] = [:]
+    var cursor: Cursor?
+    var pendingReveal: Reveal?
+    var results: NavigationResults?
+    /// A short note for the status strip: "No definition found".
+    var navigationMessage: String?
+    var backStack: [ViewerPosition] = []
+    var forwardStack: [ViewerPosition] = []
 
     /// Documents already built this session, keyed like `documentKey`.
     private var documents: [String: CodeDocument] = [:]
@@ -47,14 +79,20 @@ final class ReviewSession {
         files.first { $0.path == selectedFilePath }
     }
 
+    var document: CodeDocument? {
+        if case .loaded(let document, _) = documentState { document } else { nil }
+    }
+
     /// Changes whenever the viewer must show something else; drives the
     /// detail column's `.task(id:)`, which cancels a superseded load.
     var documentKey: String? {
-        guard let review, let selectedFilePath else { return nil }
+        guard let review else { return nil }
+        if let externalFile { return "external:\(externalFile.path)" }
+        guard let selectedFilePath else { return nil }
         return "\(review.pullRequest.head.sha):\(selectedFilePath):\(mode.rawValue)"
     }
 
-    func load(with loader: ReviewLoader) async {
+    func load(with loader: ReviewLoader, environment: ToolEnvironment) async {
         hasStarted = true
         phase = .loading(nil)
         documents = [:]
@@ -66,6 +104,7 @@ final class ReviewSession {
             if selectedFilePath == nil || selectedFile == nil {
                 selectedFilePath = review.files.first?.path
             }
+            await prepareNavigation(review, checkouts: loader.checkouts, environment: environment)
         } catch {
             phase = .failed("\(error)")
         }
@@ -81,20 +120,26 @@ final class ReviewSession {
     }
 
     func loadDocument() async {
-        guard let review, let file = selectedFile, let key = documentKey else {
+        guard let review, let key = documentKey else {
             documentState = .idle
             return
         }
+        cursor = nil
         if let cached = documents[key] {
             documentState = .loaded(cached, id: key)
+            didShow(cached)
             return
         }
         documentState = .loading
         do {
-            let document = try await review.document(for: file, mode: mode)
+            let document =
+                if let externalFile { try await LoadedReview.document(forFileAt: externalFile) }
+                else if let file = selectedFile { try await review.document(for: file, mode: mode) }
+                else { CodeDocument(plainText: "", path: "") }
             guard !Task.isCancelled else { return }
             documents[key] = document
             documentState = .loaded(document, id: key)
+            didShow(document)
         } catch {
             guard !Task.isCancelled else { return }
             documentState = .failed("\(error)")
@@ -109,5 +154,10 @@ final class ReviewSession {
         }
         let target = min(max(index + offset, 0), files.count - 1)
         selectedFilePath = files[target].path
+    }
+
+    func close() async {
+        await navigator?.shutdown()
+        navigator = nil
     }
 }

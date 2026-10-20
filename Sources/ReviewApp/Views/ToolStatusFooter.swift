@@ -33,7 +33,7 @@ struct ToolStatusFooter: View {
         if model.isCheckingTools || model.toolStatuses.isEmpty {
             "Checking tools…"
         } else if let missing = model.missingRequiredTools.first {
-            "\(missing.tool.executableName) unavailable"
+            "\(missing.tool.displayName) unavailable"
         } else {
             "\(model.toolStatuses.count(where: \.isUsable)) of \(model.toolStatuses.count) tools ready"
         }

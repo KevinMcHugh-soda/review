@@ -60,17 +60,37 @@ public struct GitClient: Sendable {
     /// config can change each of them: prefixes (`diff.noprefix`,
     /// `diff.mnemonicPrefix`), rename detection (`diff.renames`), context
     /// (`diff.context`), colour, external diff drivers and textconv filters.
-    public func diff(from base: String, to head: String, in repository: URL) async throws -> String {
+    public func diff(from base: String, to head: String, paths: [String] = [], in repository: URL) async throws -> String {
         let output = try await run(
             [
                 "diff", "--no-color", "--no-ext-diff", "--no-textconv",
                 "--src-prefix=a/", "--dst-prefix=b/",
                 "--find-renames", "--unified=3",
                 base, head, "--",
-            ],
+            ] + paths,
             in: repository
         )
         return output.stdoutText
+    }
+
+    public enum MergeResult: Hashable, Sendable {
+        /// The tree the merge would produce. Readable with `contents(of:at:)`
+        /// like a commit — no commit, and so no committer identity, is needed.
+        case clean(tree: String)
+        case conflicted
+    }
+
+    /// What merging `head` into `base` would produce, without touching any
+    /// working tree. git ≥ 2.38.
+    public func mergeTree(base: String, head: String, in repository: URL) async throws -> MergeResult {
+        do {
+            let output = try await run(["merge-tree", "--write-tree", "--no-messages", base, head], in: repository)
+            let tree = output.stdoutText.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+            return .clean(tree: tree)
+        } catch let error as GitError where error.status == 1 {
+            // Exit 1 is "conflicts", not failure.
+            return .conflicted
+        }
     }
 
     public func mergeBase(_ base: String, _ head: String, in repository: URL) async throws -> String {

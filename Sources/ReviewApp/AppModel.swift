@@ -40,6 +40,9 @@ final class AppModel {
         if options.wholeFile { selected.mode = .file }
         if !selected.hasStarted { await load(selected) }
         if let filePath = options.filePath { selected.selectedFilePath = filePath }
+        if let navigation = options.navigation {
+            await selected.performWhenReady(navigation.action, line: navigation.line, column: navigation.column)
+        }
         if let snapshotPath = options.snapshotPath {
             // Let the document build and the text view lay out.
             try? await Task.sleep(for: .seconds(2))
@@ -71,7 +74,9 @@ final class AppModel {
 
     func close(_ reference: PullRequestReference) {
         pullRequests.removeAll { $0 == reference }
-        sessions[reference] = nil
+        if let session = sessions.removeValue(forKey: reference) {
+            Task { await session.close() }
+        }
         if selection == reference { selection = pullRequests.first }
     }
 
@@ -89,10 +94,10 @@ final class AppModel {
     /// not ready yet, so a PR opened in the first half-second still loads.
     func load(_ session: ReviewSession) async {
         await start()
-        guard let loader = services?.loader else {
+        guard let services, let loader = services.loader else {
             session.fail("git or gh is missing — see the tool status in the sidebar.")
             return
         }
-        await session.load(with: loader)
+        await session.load(with: loader, environment: services.environment)
     }
 }

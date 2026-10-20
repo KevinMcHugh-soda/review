@@ -6,6 +6,9 @@ import Foundation
 /// - `--open <pr>` opens a pull request at launch.
 /// - `--file <path>` selects a changed file in it.
 /// - `--mode file` starts in whole-file mode.
+/// - `--navigate <action> --line <n> --column <c>` runs a navigation action
+///   (`definition`, `references`, `callers`, …) at a head-side line and
+///   UTF-16 column once the servers are ready.
 /// - `REVIEW_SNAPSHOT=<png>` renders the key window to that file once loading
 ///   settles, then quits. The agent's terminal has no Screen Recording
 ///   permission, so `screencapture` sees only the desktop; drawing our own
@@ -15,6 +18,7 @@ struct LaunchOptions {
     let pullRequest: String?
     let filePath: String?
     let wholeFile: Bool
+    let navigation: (action: NavigationAction, line: Int, column: Int)?
     let snapshotPath: String?
 
     static let current = Self(
@@ -29,6 +33,13 @@ struct LaunchOptions {
         pullRequest = value(after: "--open")
         filePath = value(after: "--file")
         wholeFile = value(after: "--mode") == "file"
+        if let action = value(after: "--navigate").flatMap(NavigationAction.init(rawValue:)),
+           let line = value(after: "--line").flatMap(Int.init)
+        {
+            navigation = (action, line, value(after: "--column").flatMap(Int.init) ?? 0)
+        } else {
+            navigation = nil
+        }
         snapshotPath = environment["REVIEW_SNAPSHOT"]
     }
 
