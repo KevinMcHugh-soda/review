@@ -54,8 +54,8 @@ make cli && ./.build/debug/review doctor
 3. ✅ **Navigate** — a worktree per PR and language servers on it; ⌘-click to
    definition and type definition, find references, implementations and
    callers; back/forward; after-merge via `git merge-tree`
-4. **Draft and ask** — draft comments on lines and ranges, stored locally;
-   ask Claude about one draft or all of them, with follow-ups
+4. ✅ **Draft and ask** — draft comments on lines and ranges, stored locally;
+   ask Claude about one draft or all of them, read-only, with follow-ups
 5. **Post** — existing review threads shown inline; drafts become a pending
    GitHub review; submit as comment, approve or request changes
 6. **Daily driver** — review-requested inbox, viewed-file tracking,

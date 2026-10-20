@@ -22,8 +22,8 @@ Targets are added by the milestone that needs them; an empty placeholder
 target is noise.
 
 ```
-ReviewCore       PullRequestReference, PullRequest, Side; later LineRange,
-                 SourceLocation, DraftComment. No I/O.
+ReviewCore       PullRequestReference, PullRequest, Side, CodeLocation,
+                 DraftComment/CommentAnchor/ReviewNotes. No I/O.
 ReviewProcess    Subprocess, ToolEnvironment. The only target that spawns.
   ReviewDiff     FileDiff/Hunk/DiffLine and UnifiedDiffParser.             ✅ M2
   ReviewGit      GitClient (pinned diff options), CheckoutStore clones.    ✅ M2
@@ -31,10 +31,10 @@ ReviewProcess    Subprocess, ToolEnvironment. The only target that spawns.
   ReviewSyntax   tree-sitter highlighting, vendored queries.               ✅ M2
   ReviewLSP      JSON-RPC over stdio; LanguageServer; ServerCommand picks
                  gopls or a TypeScript server.                             ✅ M3
-  ReviewClaude   claude -p with stream-json; one session per thread.       (M4)
-  ReviewStore    GRDB: reviews, drafts, Claude transcripts.                (M4)
+  ReviewClaude   claude -p, read-only, stream-json; ClaudeStreamParser.   ✅ M4
     ReviewKit    ReviewLoader, LoadedReview, CodeDocument (the viewer's
-                 rows), Navigator, Doctor. The facade both frontends consume.
+                 rows), Navigator, ReviewAssistant + ReviewPrompts,
+                 NotesStore, Doctor. The facade both frontends consume.
       ReviewApp  SwiftUI views, @Observable models, the NSTextView wrapper.
       ReviewCLI  ArgumentParser commands. Product name: `review`.
 ```
@@ -88,7 +88,8 @@ Two kinds of child:
 ~/Library/Application Support/Review/
   repos/<owner>/<repo>.git           managed clone, shared by every PR in that repo
   worktrees/<owner>/<repo>/<n>/head  the PR head, detached, for the servers
-  review.sqlite                      drafts, Claude transcripts, viewed files (M4)
+  reviews/<owner>/<repo>/<n>.json    drafts and Claude conversations
+  claude/<owner>/<repo>/<n>/         the empty directory claude -p runs in
 ```
 
 Nothing is written into the reviewer's own clones. See checkout-and-diff.md.

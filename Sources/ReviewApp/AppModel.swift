@@ -43,6 +43,9 @@ final class AppModel {
         if let navigation = options.navigation {
             await selected.performWhenReady(navigation.action, line: navigation.line, column: navigation.column)
         }
+        if let comment = options.comment {
+            await selected.scriptedComment(lines: comment.lines, note: comment.note, ask: comment.ask)
+        }
         if let snapshotPath = options.snapshotPath {
             // Let the document build and the text view lay out.
             try? await Task.sleep(for: .seconds(2))
@@ -98,6 +101,6 @@ final class AppModel {
             session.fail("git or gh is missing — see the tool status in the sidebar.")
             return
         }
-        await session.load(with: loader, environment: services.environment)
+        await session.load(with: loader, services: services)
     }
 }

@@ -43,6 +43,20 @@ enum Theme {
     /// Room for a four-digit line number in a result row.
     static let resultLineNumberWidth: CGFloat = 36
 
+    // MARK: Drafts inspector
+    static let inspectorMinWidth: CGFloat = 300
+    static let inspectorIdealWidth: CGFloat = 380
+    static let inspectorMaxWidth: CGFloat = 640
+    static let cardCornerRadius: CGFloat = 8
+    static let codeBlockCornerRadius: CGFloat = 6
+    static let noteMinHeight: CGFloat = 54
+    static let noteMaxHeight: CGFloat = 220
+    /// Quoted code in a draft card is a reminder, not the code itself.
+    static let maxQuotedLines = 6
+    static let readingTopInset: CGFloat = 28
+    static let badgePaddingHorizontal: CGFloat = 6
+    static let badgePaddingVertical: CGFloat = 1
+
     // MARK: Panes
     /// Standard horizontal inset for pane content.
     static let gutter: CGFloat = 12
@@ -67,6 +81,10 @@ enum Theme {
         static let code = Font.system(.body, design: .monospaced)
         /// Code in result lists, a step down so a row stays one line.
         static let codeSmall = Font.system(.callout, design: .monospaced)
+        /// The reviewer's own words in a draft.
+        static let note = Font.body
+        /// "base", "not in PR".
+        static let badge = Font.caption2.weight(.medium)
         /// A panel's header: the results panel's "References · 3 results".
         static let panelTitle = Font.callout.weight(.semibold)
     }
@@ -94,6 +112,9 @@ enum Theme {
         static let lineSpacing: CGFloat = 2
         static let textInset = NSSize(width: 6, height: 6)
         static let gutterPadding: CGFloat = 8
+        /// The leftmost gutter column, where a draft's bubble sits.
+        static let draftMarkWidth: CGFloat = 16
+        static let draftMark = NSColor.controlAccentColor
         static let gutterColumnGap: CGFloat = 6
 
         static let text = NSColor.textColor

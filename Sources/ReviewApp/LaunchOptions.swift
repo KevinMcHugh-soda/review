@@ -9,6 +9,8 @@ import Foundation
 /// - `--navigate <action> --line <n> --column <c>` runs a navigation action
 ///   (`definition`, `references`, `callers`, …) at a head-side line and
 ///   UTF-16 column once the servers are ready.
+/// - `--comment <start>[-<end>] --note <text> [--ask]` adds a draft on those
+///   head-side lines, and with `--ask` asks Claude and waits for the answer.
 /// - `REVIEW_SNAPSHOT=<png>` renders the key window to that file once loading
 ///   settles, then quits. The agent's terminal has no Screen Recording
 ///   permission, so `screencapture` sees only the desktop; drawing our own
@@ -19,6 +21,7 @@ struct LaunchOptions {
     let filePath: String?
     let wholeFile: Bool
     let navigation: (action: NavigationAction, line: Int, column: Int)?
+    let comment: (lines: ClosedRange<Int>, note: String, ask: Bool)?
     let snapshotPath: String?
 
     static let current = Self(
@@ -39,6 +42,13 @@ struct LaunchOptions {
             navigation = (action, line, value(after: "--column").flatMap(Int.init) ?? 0)
         } else {
             navigation = nil
+        }
+        if let spec = value(after: "--comment") {
+            let bounds = spec.split(separator: "-").compactMap { Int($0) }
+            let lines = (bounds.first ?? 1)...(bounds.last ?? bounds.first ?? 1)
+            comment = (lines, value(after: "--note") ?? "", arguments.contains("--ask"))
+        } else {
+            comment = nil
         }
         snapshotPath = environment["REVIEW_SNAPSHOT"]
     }

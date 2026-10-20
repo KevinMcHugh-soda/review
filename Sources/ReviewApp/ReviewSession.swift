@@ -62,6 +62,21 @@ final class ReviewSession {
     var backStack: [ViewerPosition] = []
     var forwardStack: [ViewerPosition] = []
 
+    // Drafts and Claude; see ReviewSession+Drafts.swift.
+    var notes = ReviewNotes()
+    var notesStore: NotesStore?
+    var assistant: ReviewAssistant?
+    var selectedDraftID: UUID?
+    var isInspectorShown = false
+    /// Rows selected in the code view, for Add Comment.
+    var selectedRows: ClosedRange<Int>?
+    /// Follow-up questions being typed, by draft (or `overviewID`).
+    var followUps: [UUID: String] = [:]
+    /// Turns in flight, by draft (or `overviewID`).
+    var asks: [UUID: AskProgress] = [:]
+    var askTasks: [UUID: Task<Void, Never>] = [:]
+    var pendingSave: Task<Void, Never>?
+
     /// Documents already built this session, keyed like `documentKey`.
     private var documents: [String: CodeDocument] = [:]
 
@@ -92,7 +107,11 @@ final class ReviewSession {
         return "\(review.pullRequest.head.sha):\(selectedFilePath):\(mode.rawValue)"
     }
 
-    func load(with loader: ReviewLoader, environment: ToolEnvironment) async {
+    func load(with loader: ReviewLoader, services: AppServices) async {
+        let environment = services.environment
+        notesStore = services.notes
+        assistant = services.assistant
+        loadNotes()
         hasStarted = true
         phase = .loading(nil)
         documents = [:]
@@ -125,6 +144,7 @@ final class ReviewSession {
             return
         }
         cursor = nil
+        selectedRows = nil
         if let cached = documents[key] {
             documentState = .loaded(cached, id: key)
             didShow(cached)
@@ -157,6 +177,8 @@ final class ReviewSession {
     }
 
     func close() async {
+        for task in askTasks.values { task.cancel() }
+        saveNotesNow()
         await navigator?.shutdown()
         navigator = nil
     }

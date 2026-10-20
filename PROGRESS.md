@@ -132,12 +132,55 @@ navigation on removed lines (needs a base checkout), the
 typescript-language-server fallback is untested here, and the session's
 navigation logic has no unit tests — it was exercised through the app.
 
-## Next: milestone 4 — draft and ask
+## Milestone 4 — draft and ask ✅
 
-Draft comments on lines and ranges, stored with GRDB; ask Claude about one or
-all of them through `claude -p`, read-only, with follow-ups. Verify first that
-`--add-dir` does not load the worktree's `CLAUDE.md`. See
-plans/claude-integration.md.
+Select lines, Add Comment (⌘⇧M or the context menu), write what you think;
+ask Claude about it (⌘↩) or about every draft at once (⌥⌘↩), and follow up.
+Drafts live in a trailing inspector (⌥⌘0), are marked in the gutter, and are
+saved per PR.
+
+**The safety boundary was verified before any code was written**, against
+the real CLI — see the table in plans/claude-integration.md. In short:
+`--tools "Read,Grep,Glob"` (without it `--restricted` still offers Edit and
+Write), `--restricted` (file tools refused outside the directories by the tool
+layer, not just declined by the model), a neutral working directory with the
+checkout attached by `--add-dir` (a PR's `CLAUDE.md` canary never fires; the
+control run shows the canary does work), and `--strict-mcp-config`.
+
+**Verified in the app** on spf13/cobra#2397: a draft on lines 70–75 —
+"what the hell is this map of empty structs? why not a map[string]bool?" —
+answered in about six seconds for $0.05. Claude explained the set idiom,
+offered the `map[string]bool` version, and checked cobra's own precedent by
+reading `flag_groups.go`. The draft and conversation survive a relaunch, and
+the inspector reopens with them.
+
+**What exists:**
+
+- `ReviewCore`: `DraftComment`, `CommentAnchor` (path, side, lines, the
+  commit they refer to, the quoted lines), `ConversationTurn`, `ReviewNotes`
+- `ReviewClaude`: `ClaudeClient` (one turn per process, streamed, cancellable,
+  ten-minute timeout), `ClaudeStreamParser`
+- `ReviewKit`: `ReviewAssistant`, `ReviewPrompts` (system prompt, first
+  question with excerpt and diff, follow-ups through `--resume`, the
+  all-drafts overview), `NotesStore` (JSON per PR — SQLite dropped as
+  unnecessary)
+- App: Review menu, gutter bubbles (click to select the draft), draft cards
+  with the quoted code, a note editor, streaming answers rendered as Markdown
+  with code blocks, the tool Claude is using shown while it reads, per-turn
+  cost, Stop, stale-anchor and not-in-PR tags
+
+**Tests: 76** (+1 opt-in live test, which passed): the parser on sanitised
+real streams, the argument list, prompts, the notes store.
+
+**Not yet:** follow-ups and Ask About All were not exercised in the app,
+only through the CLI (`--resume` keeps context; the session id is stable).
+No re-anchoring when the PR moves (drafts are tagged "older commit"). The
+session's draft logic has no unit tests.
+
+## Next: milestone 5 — post
+
+Existing review threads inline; drafts become a pending GitHub review, with
+the line-mapping fallbacks in plans/github.md shown before anything is sent.
 
 ## Things that bit us
 
@@ -196,3 +239,20 @@ Non-contiguous layout estimates their heights; lay out up to the target first.
 **`textViewDidChangeSelection` fires during `updateNSView`.** Writing the
 cursor into observed state from there is a mutation mid-update; it is
 deferred to the next turn of the run loop.
+
+**`--restricted` alone is not read-only.** It drops the code-running tools but
+still offers Edit, Write and NotebookEdit, confined to the working
+directories — which include the checkout. `--tools "Read,Grep,Glob"` is what
+makes it read-only.
+
+**A model declining is not a guard.** The first probe asked Claude to write
+outside its directories and it refused on its own; that proves nothing about
+the tool layer. The second asked innocently and the Read tool itself refused,
+which shows up in `permission_denials`.
+
+**`--bare` is the wrong mode here.** Its help says `--add-dir` there *is* a
+source of CLAUDE.md files, and it drops OAuth.
+
+**Captured CLI output carries personal data.** The `system/init` line lists
+plugins, paths and account details, and `input_json_delta` fragments spell
+out paths piecewise. The fixtures were cut down before they were committed.

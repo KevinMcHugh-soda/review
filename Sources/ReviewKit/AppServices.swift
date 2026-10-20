@@ -1,4 +1,5 @@
 import Foundation
+import ReviewClaude
 import ReviewGit
 import ReviewGitHub
 import ReviewProcess
@@ -35,4 +36,15 @@ public struct AppServices: Sendable {
             git: git
         )
     }
+
+    /// Nil when claude is not installed.
+    public var assistant: ReviewAssistant? {
+        guard let claude = environment.locate(Tool.claude.executableName) else { return nil }
+        return ReviewAssistant(
+            client: ClaudeClient(executable: claude, environment: environment.variables),
+            scratchRoot: CheckoutStore.defaultRoot.appendingPathComponent("claude", isDirectory: true)
+        )
+    }
+
+    public var notes: NotesStore { NotesStore(root: CheckoutStore.defaultRoot) }
 }

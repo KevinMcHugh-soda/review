@@ -52,12 +52,14 @@ let package = Package(
         ),
         // JSON-RPC to gopls and the TypeScript servers.
         .target(name: "ReviewLSP", dependencies: ["ReviewProcess"]),
+        // claude -p, read-only, streamed. No dependencies.
+        .target(name: "ReviewClaude"),
         // The facade both frontends consume. Still no SwiftUI.
         .target(
             name: "ReviewKit",
             dependencies: [
                 "ReviewCore", "ReviewProcess", "ReviewDiff", "ReviewGit", "ReviewGitHub", "ReviewSyntax",
-                "ReviewLSP",
+                "ReviewLSP", "ReviewClaude",
             ]
         ),
 
@@ -84,6 +86,11 @@ let package = Package(
         // Includes tests against the real gopls and typescript-language-server,
         // skipped when either is not installed.
         .testTarget(name: "ReviewLSPTests", dependencies: ["ReviewLSP", "ReviewProcess"]),
+        .testTarget(
+            name: "ReviewClaudeTests",
+            dependencies: ["ReviewClaude", "ReviewProcess"],
+            resources: [.copy("Streams")]
+        ),
         // Real git against throwaway local repositories, end to end through
         // clone, fetch, diff, parse and the viewer's rows.
         .testTarget(

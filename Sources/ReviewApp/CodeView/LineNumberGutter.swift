@@ -5,6 +5,9 @@ import ReviewKit
 /// vertical ruler on the code's scroll view.
 final class LineNumberGutter: NSRulerView {
     private var digits = 1
+    /// Clicking a row's draft bubble.
+    var onSelectDraft: ((UUID) -> Void)?
+    private static let bubble = NSImage(systemSymbolName: "text.bubble.fill", accessibilityDescription: "Draft comment")
 
     init(textView: CodeTextView) {
         super.init(scrollView: textView.enclosingScrollView, orientation: .verticalRuler)
@@ -21,7 +24,8 @@ final class LineNumberGutter: NSRulerView {
         digits = max(String(maxLineNumber).count, 2)
         let digitWidth = ("8" as NSString).size(withAttributes: [.font: Theme.Code.gutterFont]).width
         let column = digitWidth * CGFloat(digits)
-        ruleThickness = Theme.Code.gutterPadding * 2 + column * 2 + Theme.Code.gutterColumnGap * 2 + digitWidth
+        ruleThickness = Theme.Code.draftMarkWidth + Theme.Code.gutterPadding * 2 + column * 2
+            + Theme.Code.gutterColumnGap * 2 + digitWidth
         needsDisplay = true
     }
 
@@ -35,7 +39,7 @@ final class LineNumberGutter: NSRulerView {
         let font = Theme.Code.gutterFont
         let digitWidth = ("8" as NSString).size(withAttributes: [.font: font]).width
         let column = digitWidth * CGFloat(digits)
-        let oldRight = Theme.Code.gutterPadding + column
+        let oldRight = Theme.Code.draftMarkWidth + Theme.Code.gutterPadding + column
         let newRight = oldRight + Theme.Code.gutterColumnGap + column
         let markLeft = newRight + Theme.Code.gutterColumnGap
 
@@ -54,6 +58,12 @@ final class LineNumberGutter: NSRulerView {
                 band.setFill()
                 NSRect(x: 0, y: y, width: bounds.width - 1, height: height).fill()
             }
+            if textView.draftRows[row] != nil, let bubble = Self.bubble {
+                let size = min(Theme.Code.draftMarkWidth - 4, height - 2)
+                let rect = NSRect(x: 3, y: y + (height - size) / 2, width: size, height: size)
+                bubble.withSymbolConfiguration(.init(paletteColors: [Theme.Code.draftMark]))?
+                    .draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            }
             draw(item.oldLine, rightEdge: oldRight, y: top, attributes: numberAttributes)
             draw(item.newLine, rightEdge: newRight, y: top, attributes: numberAttributes)
 
@@ -67,6 +77,18 @@ final class LineNumberGutter: NSRulerView {
                 at: NSPoint(x: markLeft, y: top),
                 withAttributes: [.font: font, .foregroundColor: Theme.Code.markColor(for: item.kind)]
             )
+        }
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        guard let textView = clientView as? CodeTextView else { return }
+        let point = convert(event.locationInWindow, from: nil)
+        let hit = textView.visibleRows(in: textView.visibleRect).first { _, lineRect in
+            let y = convert(NSPoint(x: 0, y: lineRect.minY), from: textView).y
+            return point.y >= y && point.y < y + lineRect.height
+        }
+        if let hit, let draft = textView.draftRows[hit.row] {
+            onSelectDraft?(draft)
         }
     }
 

@@ -32,6 +32,10 @@ struct CodeDetail: View {
             }
         }
         .task(id: session.documentKey) { await session.loadDocument() }
+        .inspector(isPresented: $session.isInspectorShown) {
+            DraftsInspector(session: session)
+                .inspectorColumnWidth(min: Theme.inspectorMinWidth, ideal: Theme.inspectorIdealWidth, max: Theme.inspectorMaxWidth)
+        }
         .toolbar {
             ToolbarItemGroup(placement: .navigation) {
                 Button("Back", systemImage: "chevron.left") { session.goBack() }
@@ -49,6 +53,12 @@ struct CodeDetail: View {
                 .pickerStyle(.segmented)
                 .help("Show only the changes (⌘1) or the whole file after the merge (⌘2)")
                 .disabled(session.selectedFile == nil)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Toggle(isOn: $session.isInspectorShown) {
+                    Label("Drafts", systemImage: "text.bubble")
+                }
+                .help("Show your draft comments (⌥⌘0)")
             }
         }
     }
@@ -95,9 +105,18 @@ struct CodeDetail: View {
                         document: document,
                         documentID: id,
                         reveal: session.pendingReveal,
-                        onCursorChange: { session.cursor = $0 },
+                        draftRows: session.draftRows,
+                        onSelectionChange: { cursor, rows in
+                            session.cursor = cursor
+                            session.selectedRows = rows
+                        },
                         onNavigate: { action, cursor in
                             Task { await session.perform(action, at: cursor) }
+                        },
+                        onAddComment: { session.addDraft() },
+                        onSelectDraft: { id in
+                            session.selectedDraftID = id
+                            session.isInspectorShown = true
                         }
                     )
                 }

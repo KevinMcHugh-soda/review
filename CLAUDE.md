@@ -55,7 +55,10 @@ not exist here, so never reach for it. `swift build` compiles; `build.sh` bundle
   Recording permission), so the app renders its own window instead:
   `REVIEW_SNAPSHOT=/path/out.png build/Review.app/Contents/MacOS/ReviewApp --open <pr> --file <path> [--mode file]`
   writes a PNG once loading settles and quits. Add `--navigate definition|references|callers|…
-  --line <head line> --column <utf-16 column>` to exercise navigation. See `LaunchOptions.swift`.
+  --line <head line> --column <utf-16 column>` to exercise navigation, or `--comment 70-75 --note "…"
+  --ask` to add a draft and ask Claude (costs a few cents). See `LaunchOptions.swift`.
+* `REVIEW_LIVE_CLAUDE=1 swift test --filter Live` re-checks the Claude safety boundary against the
+  real `claude`. Opt-in because it costs money; run it after touching `ClaudeClient`'s flags.
 * `SIGN_IDENTITY` defaults to `review-dev`, a self-signed cert created by
   `scripts/make-signing-cert.sh`. Optional: ad-hoc signing works, but changes the cdhash every
   build, so macOS treats each build as a different program and re-asks for any permission it

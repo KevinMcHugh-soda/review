@@ -16,6 +16,11 @@ final class CodeTextView: NSTextView {
     /// ⌘-click and the context menu's navigation items. The character index
     /// is in the text view's string.
     var onNavigate: ((NavigationAction, Int) -> Void)?
+    var onAddComment: (() -> Void)?
+    /// Rows covered by a draft, which the gutter marks.
+    var draftRows: [Int: UUID] = [:] {
+        didSet { enclosingScrollView?.verticalRulerView?.needsDisplay = true }
+    }
 
     static func make() -> CodeTextView {
         let storage = NSTextStorage()
@@ -80,6 +85,15 @@ final class CodeTextView: NSTextView {
         return Cursor(row: row, column: index - rowStarts[row])
     }
 
+    /// The rows a selection touches. A selection ending at the very start of
+    /// a row (a triple-click, or a drag to the line below) does not include it.
+    func rows(in range: NSRange) -> ClosedRange<Int>? {
+        guard !rowStarts.isEmpty else { return nil }
+        let first = row(containing: range.location)
+        let end = range.length > 0 ? range.location + range.length - 1 : range.location
+        return first...max(first, row(containing: end))
+    }
+
     /// Scrolls a row to the middle of the view, selects the range and flashes
     /// it, so the eye finds where a jump landed.
     func reveal(row: Int, column: Int, length: Int) {
@@ -134,11 +148,17 @@ final class CodeTextView: NSTextView {
             item.representedObject = action.rawValue
             return item
         }
-        for (offset, item) in items.enumerated() {
+        let comment = NSMenuItem(title: "Add Comment", action: #selector(addComment(_:)), keyEquivalent: "")
+        comment.target = self
+        for (offset, item) in ([comment, .separator()] + items).enumerated() {
             menu.insertItem(item, at: offset)
         }
-        menu.insertItem(.separator(), at: items.count)
+        menu.insertItem(.separator(), at: items.count + 2)
         return menu
+    }
+
+    @objc private func addComment(_ sender: NSMenuItem) {
+        onAddComment?()
     }
 
     @objc private func navigate(_ sender: NSMenuItem) {

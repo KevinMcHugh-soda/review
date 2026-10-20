@@ -36,6 +36,26 @@ struct ReviewCommands: Commands {
                 .disabled(session?.review == nil)
             Divider()
         }
+        CommandMenu("Review") {
+            Button("Add Comment") { session?.addDraft() }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
+                .disabled(session?.document == nil)
+            Button("Ask Claude About This Draft") {
+                guard let session, let id = session.selectedDraftID else { return }
+                session.ask(about: id)
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(session?.selectedDraftID == nil || session?.canAsk != true)
+            Button("Ask Claude About All Drafts") { session?.askAboutAll() }
+                .keyboardShortcut(.return, modifiers: [.command, .option])
+                .disabled(session?.notes.drafts.isEmpty != false || session?.canAsk != true)
+            Divider()
+            Button(session?.isInspectorShown == true ? "Hide Drafts" : "Show Drafts") {
+                session?.isInspectorShown.toggle()
+            }
+            .keyboardShortcut("0", modifiers: [.command, .option])
+            .disabled(session == nil)
+        }
         CommandMenu("Navigate") {
             ForEach(NavigationAction.allCases) { action in
                 Button(action.title) {

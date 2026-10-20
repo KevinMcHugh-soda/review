@@ -13,21 +13,25 @@ struct CodeView: NSViewRepresentable {
     let documentID: String
     /// A place to scroll to once this document shows; applied once per id.
     let reveal: Reveal?
-    let onCursorChange: (Cursor) -> Void
+    let draftRows: [Int: UUID]
+    let onSelectionChange: (Cursor, ClosedRange<Int>?) -> Void
     let onNavigate: (NavigationAction, Cursor) -> Void
+    let onAddComment: () -> Void
+    let onSelectDraft: (UUID) -> Void
 
     final class Coordinator: NSObject, NSTextViewDelegate {
         var shownID: String?
         var revealedID: UUID?
-        var onCursorChange: ((Cursor) -> Void)?
+        var onSelectionChange: ((Cursor, ClosedRange<Int>?) -> Void)?
 
         func textViewDidChangeSelection(_ notification: Notification) {
-            guard let textView = notification.object as? CodeTextView,
-                  let cursor = textView.cursor(at: textView.selectedRange().location)
-            else { return }
+            guard let textView = notification.object as? CodeTextView else { return }
+            let range = textView.selectedRange()
+            guard let cursor = textView.cursor(at: range.location) else { return }
+            let rows = textView.rows(in: range)
             // Deferred: this also fires while `updateNSView` replaces the
             // text, and changing observed state mid-update is not allowed.
-            DispatchQueue.main.async { [onCursorChange] in onCursorChange?(cursor) }
+            DispatchQueue.main.async { [onSelectionChange] in onSelectionChange?(cursor, rows) }
         }
     }
 
@@ -56,11 +60,13 @@ struct CodeView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? CodeTextView else { return }
         let coordinator = context.coordinator
-        coordinator.onCursorChange = onCursorChange
+        coordinator.onSelectionChange = onSelectionChange
         textView.onNavigate = { [onNavigate, weak textView] action, index in
             guard let cursor = textView?.cursor(at: index) else { return }
             onNavigate(action, cursor)
         }
+        textView.onAddComment = onAddComment
+        (scrollView.verticalRulerView as? LineNumberGutter)?.onSelectDraft = onSelectDraft
 
         if coordinator.shownID != documentID {
             coordinator.shownID = documentID
@@ -68,6 +74,7 @@ struct CodeView: NSViewRepresentable {
             textView.show(document.rows, text: CodeAttributedText.make(document))
             (scrollView.verticalRulerView as? LineNumberGutter)?.update(maxLineNumber: document.maxLineNumber)
         }
+        if textView.draftRows != draftRows { textView.draftRows = draftRows }
 
         if let reveal, reveal.id != coordinator.revealedID, let row = document.row(forNewLine: reveal.line) {
             coordinator.revealedID = reveal.id
