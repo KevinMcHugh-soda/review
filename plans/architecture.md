@@ -1,0 +1,89 @@
+# Architecture
+
+## Layering rule
+
+Everything except SwiftUI views lives in library targets. The app and the CLI
+are both thin frontends over the same core, and the hard parts are testable
+with `swift test` without launching a GUI.
+
+SwiftUI is a system framework, so nothing structurally prevents `import SwiftUI`
+appearing in `ReviewLSP`. `make lint-layers` greps for it and fails the build —
+it runs as part of `make check`, and covers every directory under `Sources/`
+except the two frontends, so a new target is covered the moment it exists.
+
+The code viewer is the one place this bends: it has to be an `NSTextView`
+(see code-viewer.md), and that wrapper lives in `ReviewApp` with the views.
+What it *displays* — lines, diff marks, highlight spans, comment anchors — is
+computed in logic targets and handed over as plain values.
+
+## Target graph
+
+Targets are added by the milestone that needs them; an empty placeholder
+target is noise.
+
+```
+ReviewCore       PullRequestReference; later FileChange, Hunk, DiffLine,
+                 Side, LineRange, SourceLocation, DraftComment. No I/O.
+ReviewProcess    Subprocess, ToolEnvironment. The only target that spawns.
+  ReviewDiff     Unified-diff parser; line ↔ (line, side) mapping.     (M2)
+  ReviewGit      Managed clones, fetching PR refs, worktrees.          (M2)
+  ReviewGitHub   gh api: PR metadata, review threads, posting.         (M2, M5)
+  ReviewSyntax   Highlight spans for Go and TypeScript.                (M2)
+  ReviewLSP      JSON-RPC over stdio; one server per worktree+language.(M3)
+  ReviewClaude   claude -p with stream-json; one session per thread.   (M4)
+  ReviewStore    GRDB: reviews, drafts, Claude transcripts.            (M4)
+    ReviewKit    The facade both frontends consume. Still no SwiftUI.
+      ReviewApp  SwiftUI views, @Observable models, the NSTextView wrapper.
+      ReviewCLI  ArgumentParser commands. Product name: `review`.
+```
+
+## Naming: why the app binary is `ReviewApp`
+
+Same reason as uncurl. macOS filesystems are case-insensitive by default, so
+binaries named `Review` and `review` are the same file in the build directory
+and inside `Contents/MacOS/`. The bundle is `Review.app` with display name
+Review; only `CFBundleExecutable` differs. That leaves `review` free for the
+CLI.
+
+## Everything is a child process
+
+The app talks to five programs, none bundled: git, gh, gopls,
+typescript-language-server and claude. That is deliberate — each is what the
+reviewer already has installed and authenticated, so the app holds no GitHub
+token, no Anthropic key and no copy of a language server.
+
+Two consequences shape the core:
+
+**The environment comes from the login shell.** A Finder-launched app gets
+launchd's PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), which finds none of
+`~/go/bin/gopls`, `~/.local/bin/claude` or Homebrew's `gh`. GOPRIVATE,
+GOFLAGS and GOPATH go missing with it, which breaks gopls on private modules
+even when gopls is found. `ToolEnvironment.loginShell()` runs
+`$SHELL -l -i -c env` once at launch and every child gets that environment.
+Interactive as well as login, because most people set PATH in `.zshrc`.
+
+**No App Sandbox.** A sandboxed app cannot exec tools from the user's home
+directory or let them read arbitrary repositories. This is a local developer
+tool, never an App Store app, so the sandbox stays off and there is no
+entitlements file.
+
+Two kinds of child:
+
+- **Run to completion** — git, gh, one `claude -p` turn. `Subprocess.run`
+  drains stdout and stderr concurrently (sequential draining deadlocks once a
+  child fills the 64 KiB pipe buffer on the other stream) and enforces a
+  timeout.
+- **Long-lived conversations** — language servers. Owned by an actor in
+  `ReviewLSP` that frames JSON-RPC over the child's stdio; see lsp.md.
+
+## Where state lives
+
+```
+~/Library/Application Support/Review/
+  repos/<owner>/<repo>.git           managed clone, shared by every PR in that repo
+  worktrees/<owner>/<repo>/<n>/head  the PR head, detached
+  worktrees/<owner>/<repo>/<n>/merge the after-merge tree, when base has moved
+  review.sqlite                      drafts, Claude transcripts, viewed files (M4)
+```
+
+Nothing is written into the reviewer's own clones. See checkout-and-diff.md.
