@@ -272,17 +272,17 @@ titles render in a quieter colour than open PRs, which may want a look.
   rendered on cobra#2397 (`CommandPath`'s signature and doc comment from
   gopls). **⌘ underline** for jumpable symbols (not seen in a render — it needs
   a real pointer).
-- **Replies and resolving** — in thread cards and as `review reply` /
-  `review resolve`.
+- **Posting, replying and resolving, for real** — on KevinMcHugh-soda/review#1
+  (this work's own PR): a review with a single-line comment, a range comment and
+  a summary section for a draft outside the diff; then a reply on one thread,
+  and resolving it. Done through the CLI; the app's Post sheet and thread-card
+  buttons call the same code but were not pressed.
 - **Notification when Claude answers**, with click-through to the draft.
 - **One window, always.** A single `Window` scene: one window at launch,
   `review://` links land in it, including one that launches the app.
 
 **Not verified:**
 
-- **A real post, reply or resolve.** Creating a throwaway PR in the `review`
-  repo to test on was declined, so none has been sent. Options: a pending
-  review on any PR (visible only to you), or a throwaway PR you create.
 - **The notification on screen.** It needs the one-time permission prompt
   answered by someone at the machine.
 
@@ -291,7 +291,8 @@ layout, and added files.
 
 ## What next
 
-1. A first real post, reply and resolve.
+1. The two review comments on review#1: remove `SplitCodeView`'s observers in
+   `deinit`; flush pending note saves on quit.
 2. Navigation on removed lines (a base worktree) and in the after-merge view.
 3. Sync viewed state with GitHub (`markFileAsViewed`).
 4. Cache PR titles for the sidebar; the inbox's quieter title colour.

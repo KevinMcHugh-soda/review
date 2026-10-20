@@ -72,12 +72,15 @@ comes back as `author: null` and shows as "ghost". Outdated threads keep
 GitHub's own Reply button. In the app, every thread card has a reply field and
 Resolve/Unresolve; on the CLI, `review reply <pr> <thread> <body> --yes` and
 `review resolve <pr> <thread> [--unresolve]`, with thread ids from
-`review threads`. **Not yet exercised against GitHub**, for the same reason as
-posting below.
+`review threads`. Verified on review#1; see below.
 
-## Not verified against GitHub
+## Verified against GitHub
 
-The request has been checked by `review post --dry-run` and the sheet, but
-**no review has been posted by this app yet**: posting is outward-facing, and
-the only PRs used in development belong to other people. Do the first real
-post on a throwaway PR in a repository you own.
+On KevinMcHugh-soda/review#1, 2026-10-20, with `review post … --yes`: a
+single-line comment, a range comment (`start_line` 27 → `line` 37) and a draft
+outside the diff quoted in the summary with its permalink, in one review —
+https://github.com/KevinMcHugh-soda/review/pull/1#pullrequestreview-5590472535.
+All three drafts were marked posted with that URL. Then `review reply` added a
+reply to one thread and `review resolve` resolved it; `review threads` read
+both back. Posting from the app's sheet goes through the same
+`ReviewPublisher.post`, but has not itself been pressed.
