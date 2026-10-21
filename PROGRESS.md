@@ -382,6 +382,15 @@ does emphasis, code spans and links inside each block. Not full CommonMark:
 nested lists indented short of the content column are accepted, and HTML
 outside `<details>` and a few inline tags is stripped.
 
+## Approved marks in the sidebar
+
+A green `checkmark.circle.fill` (`ApprovedMark`) follows the title of any PR
+whose reviewers' latest opinionated reviews include an approval — not
+`reviewDecision`, which is null in repositories that don't require reviews.
+The summaries GraphQL query asks for `latestOpinionatedReviews`; `gh search
+prs` can't return review state, so `GitHubClient.inbox` runs that query over
+the search results afterwards, and leaves every item unmarked if it fails.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in

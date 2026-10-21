@@ -18,10 +18,15 @@ struct PullRequestRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title ?? "#\(reference.number)")
-                .font(Theme.Fonts.rowTitle)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            HStack(spacing: Theme.tightSpacing) {
+                Text(title ?? "#\(reference.number)")
+                    .font(Theme.Fonts.rowTitle)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if summary?.isApproved == true {
+                    ApprovedMark()
+                }
+            }
             Text(byline)
                 .font(Theme.Fonts.meta)
                 .foregroundStyle(.secondary)

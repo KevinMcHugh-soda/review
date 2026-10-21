@@ -150,12 +150,20 @@ extension GitHubClient {
     /// Open pull requests the viewer is asked to review, is assigned, or
     /// wrote — one search each, merged — newest activity first. Limited to
     /// `repositories` unless it is empty, which means all of GitHub.
+    /// Search cannot say which are approved, so a summary lookup does; if it
+    /// fails the inbox still comes back, with none marked approved.
     public func inbox(in repositories: [RepositoryName], limit: Int = 100) async throws -> [InboxItem] {
-        try await withThrowingTaskGroup(of: [InboxItem].self) { group in
+        let items = try await withThrowingTaskGroup(of: [InboxItem].self) { group in
             for reason in InboxItem.Reason.allCases {
                 group.addTask { try await self.search(reason, in: repositories, limit: limit) }
             }
             return try await group.reduce(into: []) { $0 += $1 }.mergingReasons()
+        }
+        let summaries = (try? await summaries(of: items.map(\.reference))) ?? [:]
+        return items.map { item in
+            var item = item
+            item.isApproved = summaries[item.reference]?.isApproved ?? false
+            return item
         }
     }
 

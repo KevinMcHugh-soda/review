@@ -14,6 +14,9 @@ public struct InboxItem: Hashable, Sendable, Identifiable, Codable {
     public let isDraft: Bool
     public let updatedAt: Date
     public var reasons: Set<Reason>
+    /// Some reviewer's latest say on it is an approval. Search cannot tell,
+    /// so this is filled in afterwards.
+    public var isApproved: Bool
 
     public var id: PullRequestReference { reference }
 
@@ -26,7 +29,8 @@ public struct InboxItem: Hashable, Sendable, Identifiable, Codable {
         author: String,
         isDraft: Bool,
         updatedAt: Date,
-        reasons: Set<Reason> = [.reviewRequested]
+        reasons: Set<Reason> = [.reviewRequested],
+        isApproved: Bool = false
     ) {
         self.reference = reference
         self.title = title
@@ -34,6 +38,7 @@ public struct InboxItem: Hashable, Sendable, Identifiable, Codable {
         self.isDraft = isDraft
         self.updatedAt = updatedAt
         self.reasons = reasons
+        self.isApproved = isApproved
     }
 }
 
