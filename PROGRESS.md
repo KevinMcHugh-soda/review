@@ -369,6 +369,12 @@ harmony's `internal/*api/client.go` rule. See plans/code-viewer.md. Checked
 with `review show sodahealth/harmony#13296`: six generated files, last.
 **Tests: 128.**
 
+**After merge uses the fetched base tip** rather than the API's `base.sha`,
+which was harmony#13296's branch point: Review called head the merged state;
+now `review show` says "base tip 45379bd5e639 · conflicts", matching GitHub's
+CONFLICTING. The diff's merge base is unchanged, to keep comment lines matching
+GitHub's diff. See plans/checkout-and-diff.md. **Tests: 129.**
+
 ## Block Markdown in descriptions and threads
 
 Descriptions, thread comments, Claude's answers and hovers share one renderer.

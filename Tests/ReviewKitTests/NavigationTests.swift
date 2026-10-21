@@ -72,6 +72,24 @@ struct NavigationTests {
         let diff = try await review.document(for: file, mode: .diff)
         #expect(diff.source == .pullRequest)
     }
+
+    /// GitHub leaves `base.sha` where it was until the PR itself changes; for
+    /// an old PR it can still be the branch point.
+    @Test("Merges into the fetched base tip when the API's base commit is stale")
+    func afterMergeWithStaleBase() async throws {
+        let fixture = try await GoFixture.make(baseAlsoEditsMain: true)
+        defer { fixture.remove() }
+        let branchPoint = try await fixture.source.git("merge-base", fixture.base, fixture.head)
+        let review = try await fixture.load(apiBase: branchPoint)
+        #expect(review.mergeBase == branchPoint)
+        #expect(review.baseTip == fixture.base)
+
+        let file = try #require(review.files.first { $0.path == "main.go" })
+        let merged = try await review.document(for: file, mode: .file)
+        #expect(merged.source == .afterMerge)
+        #expect(merged.rows.contains { $0.text == "// edited on main" })
+        #expect(merged.rows.filter { $0.kind == .added }.allSatisfy { !$0.text.contains("edited on main") })
+    }
 }
 
 /// A Go module: `main.go` calls into `shapes`, and the PR adds a call to a
@@ -155,21 +173,16 @@ private struct GoFixture {
         return sha
     }
 
-    func load(head: String? = nil) async throws -> LoadedReview {
+    /// `apiBase` stands in for a stale `base.sha` from GitHub's API.
+    func load(head: String? = nil, apiBase: String? = nil) async throws -> LoadedReview {
         let pullRequest = PullRequest(
             reference: reference, title: "Describe", body: "", author: "octocat", state: .open, isDraft: false,
-            base: PullRequest.Branch(name: "main", sha: base),
+            base: PullRequest.Branch(name: "main", sha: apiBase ?? base),
             head: PullRequest.Branch(name: "feature", sha: head ?? self.head)
         )
         let repository = try await checkouts.ensureRepository(for: reference)
         try await checkouts.fetch(pullRequest, into: repository)
-        let mergeBase = try await git.mergeBase(base, pullRequest.head.sha, in: repository)
-        let patch = try await git.diff(from: mergeBase, to: pullRequest.head.sha, in: repository)
-        let merge = mergeBase == base ? nil : try await git.mergeTree(base: base, head: pullRequest.head.sha, in: repository)
-        return LoadedReview(
-            pullRequest: pullRequest, mergeBase: mergeBase, files: try UnifiedDiffParser.parse(patch), generatedPaths: [],
-            merge: merge, repository: repository, git: git
-        )
+        return try await ReviewLoader.review(of: pullRequest, in: repository, git: git)
     }
 
     func remove() {

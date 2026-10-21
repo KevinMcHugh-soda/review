@@ -81,6 +81,15 @@ off in that view because its line numbers no longer match the head checkout
 the servers run on; Diff view (⌘1) navigates. A conflicted merge falls back to
 head.
 
+**The base is the fetched tip, not the API's `base.sha`.** GitHub moves a
+PR's `base.sha` only when the PR itself changes, so an old PR's can still be
+its branch point — harmony#13296's was, and Review showed head as the merged
+state while GitHub said it conflicted. The merge uses
+`refs/review/base/<branch>` from the fetch (`LoadedReview.baseTip`). The
+merge base, and so the diff, stays on the API's commit: the diff must be the
+one GitHub has for the PR, or line comments land on the wrong lines.
+`review show` prints the tip and whether the merge is clean.
+
 **Decided:** the diff is the default mode; after-merge is one click away.
 
 
