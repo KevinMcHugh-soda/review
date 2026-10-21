@@ -61,6 +61,12 @@ struct Show: AsyncParsableCommand {
         print("\(pr.reference)  \(pr.title)")
         print("by \(pr.author) · \(pr.state.rawValue)\(pr.isDraft ? " · draft" : "") · \(pr.head.name) → \(pr.base.name)")
         print("merge base \(review.mergeBase.prefix(12)) · head \(pr.head.sha.prefix(12)) · loaded in \(elapsed.formatted(.units(allowed: [.seconds, .milliseconds])))")
+        let merge = switch review.merge {
+        case nil: "head is the merged state"
+        case .clean: "merges cleanly"
+        case .conflicted: "conflicts"
+        }
+        print("base tip \(review.baseTip.prefix(12)) · \(merge)")
         print()
         for file in review.files {
             let status =
