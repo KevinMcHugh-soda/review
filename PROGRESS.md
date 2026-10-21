@@ -565,3 +565,10 @@ dispatch). Never block in a task.
 its own queue, and Swift's runtime isolation check traps (`EXC_BREAKPOINT` in
 `dispatch_assert_queue`) as soon as an answer's notification is shown. Use the
 `async` form of a framework API from main-actor code.
+
+**Adding or removing a sidebar section in place can crash AppKit.** A status
+group appeared or emptied (a PR merged, or the last one in a group closed), and
+the next display cycle crashed in `-[NSOutlineView rowForItem:]` from
+`_addOutlineCellTrackingAreas`. AppKit was still holding the freed section.
+The sidebar List is now `.id`'d on the groups it shows, so a change to that set
+builds a new list instead of editing the old one.
