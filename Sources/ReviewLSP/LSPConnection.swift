@@ -1,4 +1,5 @@
 import Foundation
+import ReviewProcess
 
 public enum LSPError: Error, Sendable, CustomStringConvertible, Equatable {
     case launchFailed(String)
@@ -83,9 +84,8 @@ public actor LSPConnection {
         let output = stdout.fileHandleForReading
         Task.detached { [weak self] in
             var decoder = FrameDecoder()
-            while true {
-                let chunk = output.availableData
-                guard !chunk.isEmpty, let messages = try? decoder.append(chunk) else { return }
+            for await chunk in output.chunks {
+                guard let messages = try? decoder.append(chunk) else { return }
                 for message in messages {
                     await self?.receive(message)
                 }
@@ -93,9 +93,7 @@ public actor LSPConnection {
         }
         let errors = stderr.fileHandleForReading
         Task.detached { [weak self] in
-            while true {
-                let chunk = errors.availableData
-                guard !chunk.isEmpty else { return }
+            for await chunk in errors.chunks {
                 await self?.appendStderr(chunk)
             }
         }

@@ -65,8 +65,8 @@ let package = Package(
         ),
         // JSON-RPC to gopls and the TypeScript servers.
         .target(name: "ReviewLSP", dependencies: ["ReviewProcess"]),
-        // claude -p, read-only, streamed. No dependencies.
-        .target(name: "ReviewClaude"),
+        // claude -p, read-only, streamed. ReviewProcess only for its pipe reader.
+        .target(name: "ReviewClaude", dependencies: ["ReviewProcess"]),
         // The facade both frontends consume. Still no SwiftUI.
         .target(
             name: "ReviewKit",

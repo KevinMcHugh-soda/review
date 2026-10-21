@@ -541,3 +541,18 @@ sessions now.
 puts `null` under it and an `errors` array beside `data`, and `gh` fails — but
 still prints the whole response. The status fetch decodes stdout whatever the
 exit status, and fails only when it cannot.
+
+**A blocking pipe read in a task starves the whole app.** Every pipe reader
+was a `Task.detached` calling `availableData` or `readDataToEndOfFile`. Each one
+holds a cooperative-pool thread, and there are only about as many as cores.
+Each language server keeps two readers open for the life of the PR. After a
+few PRs, with Claude answering, 14 threads were blocked and git, gh and
+diff loads waited, so the app hung. All reads now go through
+`FileHandle.chunks`/`readAll()` in ReviewProcess (`readabilityHandler`, on
+dispatch). Never block in a task.
+
+**A completion-handler closure written in `@MainActor` code is `@MainActor`.**
+`UNUserNotificationCenter.add(_:withCompletionHandler:)` calls its handler on
+its own queue, and Swift's runtime isolation check traps (`EXC_BREAKPOINT` in
+`dispatch_assert_queue`) as soon as an answer's notification is shown. Use the
+`async` form of a framework API from main-actor code.
