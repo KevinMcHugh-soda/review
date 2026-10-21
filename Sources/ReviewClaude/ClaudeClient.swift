@@ -1,4 +1,5 @@
 import Foundation
+import ReviewProcess
 import Synchronization
 
 /// One question for `claude -p`.
@@ -115,14 +116,12 @@ public struct ClaudeClient: Sendable {
         let errors = stderr.fileHandleForReading
         // Drained alongside stdout: a full stderr pipe would stall claude.
         let stderrTail = Task.detached {
-            String(decoding: errors.readDataToEndOfFile().suffix(2000), as: UTF8.self)
+            String(decoding: await errors.readAll().suffix(2000), as: UTF8.self)
         }
         let reader = Task.detached {
             var parser = ClaudeStreamParser()
             var finished = false
-            while true {
-                let chunk = output.availableData
-                if chunk.isEmpty { break }
+            for await chunk in output.chunks {
                 for event in parser.append(chunk) {
                     if case .finished = event { finished = true }
                     continuation.yield(event)

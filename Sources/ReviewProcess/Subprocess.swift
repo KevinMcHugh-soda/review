@@ -64,8 +64,8 @@ public enum Subprocess {
 
         let outHandle = stdout.fileHandleForReading
         let errHandle = stderr.fileHandleForReading
-        let outTask = Task.detached { outHandle.readDataToEndOfFile() }
-        let errTask = Task.detached { errHandle.readDataToEndOfFile() }
+        let outTask = Task.detached { await outHandle.readAll() }
+        let errTask = Task.detached { await errHandle.readAll() }
         if let input, let inHandle = stdin?.fileHandleForWriting {
             Task.detached {
                 inHandle.write(input)
