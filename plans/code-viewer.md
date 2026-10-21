@@ -85,11 +85,18 @@ Split and File modes.
 ### Generated files
 
 Files marked `linguist-generated` (set or `true`) in `.gitattributes` at the
-PR's head — GitHub's rule — go to the end of the file list and the scroll,
+PR's head — GitHub's rule — or at the base branch's current tip go to the end of the file list and the scroll,
 tagged "generated", collapsed until clicked. Found with
 `git check-attr --cached` against a throwaway index read from head's tree:
 the clone is bare, and Apple's git 2.39 predates `check-attr --source`.
 `-diff` and `binary` attributes are not treated as generated.
+
+The base tip counts because a PR cut before the base added a rule would
+otherwise miss it: harmony#13296 branched before `internal/*api/client.go`
+was marked generated, and showed 449 removed generated lines as hand-written.
+The tip is `refs/review/base/<branch>` from the fetch, not the API's
+`base.sha`, which GitHub moves only when the PR itself changes — for that PR
+it was still the merge base.
 
 ### Gaps between hunks
 
@@ -104,7 +111,7 @@ on them, caught by a test.
 ### Hover and the ⌘ underline
 
 Resting the pointer on a symbol for 0.6 s asks the language server for its
-hover and shows it in a popover, rendered as Markdown (code fences, rules).
+hover and shows it in a popover, rendered as Markdown by the shared `GitHubMarkdown.blocks` renderer (code fences, rules, lists, tables).
 Holding ⌘ underlines the symbol under the pointer and shows a pointing hand —
 what ⌘-click would jump to.
 

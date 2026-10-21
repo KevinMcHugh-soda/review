@@ -151,7 +151,7 @@ struct CheckoutAndDiffTests {
         let mergeBase = try await git.mergeBase(fixture.baseSHA, fixture.headSHA, in: repository)
         let patch = try await git.diff(from: mergeBase, to: fixture.headSHA, in: repository)
         let parsed = try UnifiedDiffParser.parse(patch)
-        let generated = try await git.generatedPaths(parsed.map(\.path), at: fixture.headSHA, in: repository)
+        let generated = try await git.generatedPaths(parsed.map(\.path), atAnyOf: [fixture.headSHA, fixture.baseSHA], in: repository)
         return LoadedReview(
             pullRequest: fixture.pullRequest, mergeBase: mergeBase,
             files: parsed.filter { !generated.contains($0.path) } + parsed.filter { generated.contains($0.path) },
