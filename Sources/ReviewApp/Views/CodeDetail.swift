@@ -145,6 +145,7 @@ struct CodeDetail: View {
             },
             onSelectThread: { id in
                 session.selectedThreadID = id
+                session.expand(threadID: id)
                 session.isInspectorShown = true
             },
             onExpandGap: { session.expandGap(atRow: $0) },

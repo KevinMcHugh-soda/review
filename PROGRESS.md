@@ -312,13 +312,64 @@ spf13/cobra#2337 (a GitHub Actions workflow); tests cover keys, values,
 numbers, booleans, comments (JSONC), anchors, and each language's precedence
 (flipping JSON's makes its test fail). **Tests: 107.**
 
+## Reordering open PRs
+
+Drag rows in the sidebar's Open section, or use Move to Top / Move Up / Move
+Down in a row's menu; the order is saved with the open list. The move rules
+(SwiftUI's `onMove` contract, where the destination counts positions before
+removal) are in `ListReordering` with tests. **Not exercised by hand** — a drag
+needs a real pointer; the sidebar was rendered to check it still draws.
+
+Also seen for the first time on a real PR (a harmony PR the reviewer had
+open): generated files from `.gitattributes` at the bottom of the file list,
+tagged, and viewed files folded to their headers in the all-files scroll.
+
+## Status groups, the description, and collapsible threads
+
+The sidebar groups open PRs by status — Open, Draft, Merged, Closed — from one
+GraphQL request for all of them (`GitHubClient.summaries(of:)`, an alias per
+PR), made at launch, on ⌘R, and when a PR is opened. A PR whose status is not
+known yet sits in Open; a loaded PR's own status wins over the fetched one.
+Merged and Closed headers have Close All, and View has Close Merged and Closed
+Pull Requests. Dragging and Move Up/Down work within a group: the group's
+members keep their slots in the saved order (`ListReordering.moving(_:where:…)`).
+Rows show the fetched title before the PR is loaded, which settles the old
+"cache PR titles" item.
+
+The inspector starts with the PR's description, collapsible. Thread cards
+collapse to a one-line preview from a chevron; resolved threads start
+collapsed, and selecting a thread's marker in the code opens it. `<!-- … -->`
+comments — PR templates' prompts, Cursor's automation IDs — are dropped before
+rendering any GitHub Markdown (`GitHubMarkdown.removingHiddenComments`).
+`--inspector on` shows the inspector in a snapshot run.
+
+Checked by snapshot on harmony#15035 (18 resolved threads, all collapsed) and
+the sidebar with review#1 under Merged. Close All was not pressed in a scripted
+run; it only edits the local open list.
+
+## Tracked repositories, and Waiting on You / Your Pull Requests
+
+Settings › Repositories (⌘,) picks the repositories the sidebar searches —
+sodahealth/harmony, dissonance and nexus for this reviewer. The old Review
+Requested section is now **Waiting on You** (asked to review *or* assigned,
+with the author on every row and an "assigned" tag) and **Your Pull Requests**
+(authored). One Refresh button in the sidebar's toolbar (⌘R, spinner while
+it runs, last-refreshed time in its tooltip) fetches all of it plus the open
+PRs' statuses. Open PR rows now show their author too. See plans/github.md.
+
+Checked by snapshot (`--sidebar on --settings on`, new launch options) with
+the three repositories tracked: eight PRs waiting, one of the reviewer's own
+(the other two already open), and the Settings pane listing the three.
+Adding and removing in Settings was not clicked in a scripted run; the model
+methods are small and the store is tested. **Tests: 127.**
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
    `deinit`; flush pending note saves on quit.
 2. Navigation on removed lines (a base worktree) and in the after-merge view.
 3. Sync viewed state with GitHub (`markFileAsViewed`).
-4. Cache PR titles for the sidebar; the inbox's quieter title colour.
+4. The inbox's quieter title colour.
 
 ## Things that bit us
 
@@ -454,3 +505,20 @@ file list following the top row, it jumped back. Headers reveal to the top.
 `tree-sitter-yaml` 0.7.1+ guards `scanner.c` with a relative `fileExists`,
 which is always false under SwiftPM; the build links fine until something
 calls the language. Pinned to 0.7.0, whose manifest lists it.
+
+**A release tag can lack its generated parser.** tree-sitter-sql's tags carry
+only `scanner.c`; `parser.c` lives on `gh-pages`. Pinned there by revision.
+
+**Neovim queries use Lua patterns in `#match?`.** `%d` matched nothing as a
+regular expression, so SQL numbers came out as strings until the vendor script
+rewrote it.
+
+**`total_cost_usd` is not a bill.** `claude -p` reports it on a subscription
+too, as an estimate at API prices. Shown as "$0.11", it made the reviewer ask
+whether the app had switched to the API. It is shown only for API-key
+sessions now.
+
+**`gh api graphql` exits 1 on partial data.** One alias that cannot be resolved
+puts `null` under it and an `errors` array beside `data`, and `gh` fails — but
+still prints the whole response. The status fetch decodes stdout whatever the
+exit status, and fails only when it cannot.

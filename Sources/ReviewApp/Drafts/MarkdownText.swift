@@ -1,3 +1,4 @@
+import ReviewKit
 import SwiftUI
 
 /// Claude's answers, rendered: fenced code blocks as code, headings bold,
@@ -8,7 +9,7 @@ struct MarkdownText: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacing) {
-            ForEach(Array(Self.blocks(markdown).enumerated()), id: \.offset) { _, block in
+            ForEach(Array(Self.blocks(GitHubMarkdown.removingHiddenComments(markdown)).enumerated()), id: \.offset) { _, block in
                 switch block {
                 case .code(let code):
                     // Unwrapped, scrolling sideways, as code should be.
@@ -83,7 +84,7 @@ struct MarkdownText: View {
         return blocks
     }
 
-    private static func inline(_ text: String) -> AttributedString {
+    static func inline(_ text: String) -> AttributedString {
         (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
             ?? AttributedString(text)
     }

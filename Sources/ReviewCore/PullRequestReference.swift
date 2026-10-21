@@ -74,7 +74,7 @@ extension PullRequestReference {
     }
 
     /// GitHub owner and repository names: letters, digits, `-`, `_` and `.`.
-    private static func isName(_ part: Substring) -> Bool {
+    static func isName(_ part: Substring) -> Bool {
         !part.isEmpty
             && part.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) }
     }

@@ -1,4 +1,5 @@
 import ReviewCore
+import ReviewKit
 import SwiftUI
 
 /// The trailing inspector: every draft on this PR, and the conversation about
@@ -11,6 +12,16 @@ struct DraftsInspector: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Theme.spacing) {
+                    if let pullRequest = session.review?.pullRequest {
+                        DisclosureGroup(isExpanded: $session.isDescriptionExpanded) {
+                            DescriptionText(markdown: pullRequest.body)
+                                .padding(.top, Theme.tightSpacing)
+                        } label: {
+                            Text("Description")
+                                .font(Theme.Fonts.panelTitle)
+                        }
+                        .padding(.bottom, Theme.spacing)
+                    }
                     if session.unpostedDrafts.isEmpty {
                         ContentUnavailableView(
                             "No Drafts",
@@ -112,6 +123,22 @@ private struct OverviewSection: View {
                 .padding(Theme.gutter)
                 .background(.background.secondary, in: .rect(cornerRadius: Theme.cardCornerRadius))
             }
+        }
+    }
+}
+
+/// The PR's description, or a note that there is none — templates' hidden
+/// prompts alone count as none.
+private struct DescriptionText: View {
+    let markdown: String
+
+    var body: some View {
+        if GitHubMarkdown.removingHiddenComments(markdown).isEmpty {
+            Text("No description.")
+                .font(Theme.Fonts.meta)
+                .foregroundStyle(.secondary)
+        } else {
+            MarkdownText(markdown: markdown)
         }
     }
 }

@@ -58,11 +58,14 @@ private struct TurnView: View {
             HStack(spacing: Theme.tightSpacing) {
                 Text(turn.author == .claude ? "Claude" : "You")
                     .font(Theme.Fonts.meta.weight(.semibold))
-                if let cost = turn.costUSD {
+                // Only when an API key paid for it. On a Claude subscription
+                // the figure Claude Code reports is an estimate at API prices,
+                // and the turn counts against the plan's usage instead.
+                if let cost = turn.chargedUSD {
                     Text(cost, format: .currency(code: "USD").precision(.fractionLength(2)))
                         .font(Theme.Fonts.meta)
                         .foregroundStyle(.tertiary)
-                        .help("What this answer cost")
+                        .help("Charged to your API key")
                 }
             }
             .foregroundStyle(.secondary)

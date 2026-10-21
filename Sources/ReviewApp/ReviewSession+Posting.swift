@@ -32,6 +32,24 @@ extension ReviewSession {
         return rows
     }
 
+    func isCollapsed(_ thread: ReviewThread) -> Bool {
+        thread.isResolved != toggledThreads.contains(thread.id)
+    }
+
+    func toggleCollapsed(_ thread: ReviewThread) {
+        if toggledThreads.contains(thread.id) {
+            toggledThreads.remove(thread.id)
+        } else {
+            toggledThreads.insert(thread.id)
+        }
+    }
+
+    /// Selecting a collapsed thread — from its marker in the code — opens it.
+    func expand(threadID: String) {
+        guard let thread = threads.first(where: { $0.id == threadID }), isCollapsed(thread) else { return }
+        toggleCollapsed(thread)
+    }
+
     func reveal(_ thread: ReviewThread) {
         selectedThreadID = thread.id
         guard let line = thread.line ?? thread.originalLine else { return }

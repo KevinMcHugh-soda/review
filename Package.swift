@@ -36,6 +36,10 @@ let package = Package(
         // from the package directory — so the scanner is left out and linking
         // fails with undefined `tree_sitter_yaml_external_scanner_*`.
         .package(url: "https://github.com/tree-sitter-grammars/tree-sitter-yaml", exact: "0.7.0"),
+        // A pinned commit on gh-pages, not a release tag: the tags ship
+        // without the generated src/parser.c (only scanner.c), so a tag does
+        // not build. gh-pages is the project's deploy of a generated build.
+        .package(url: "https://github.com/DerekStride/tree-sitter-sql", revision: "e038788e5d4daba82dea35676bf49a216629e141"),
     ],
     targets: [
         // Pure logic.
@@ -56,6 +60,7 @@ let package = Package(
                 .product(name: "TreeSitterTypeScript", package: "tree-sitter-typescript"),
                 .product(name: "TreeSitterJSON", package: "tree-sitter-json"),
                 .product(name: "TreeSitterYAML", package: "tree-sitter-yaml"),
+                .product(name: "TreeSitterSql", package: "tree-sitter-sql"),
             ]
         ),
         // JSON-RPC to gopls and the TypeScript servers.

@@ -73,9 +73,21 @@ permission prompt and the banner need someone at the machine.
 
 ## Costs and limits
 
-Each turn reports its cost in the `result` event; it is shown per turn. The
-probe turns cost $0.02–0.10. A per-turn timeout (ten minutes — Claude may read
-many files) cancels a stuck process, as does closing the PR.
+**Asking Claude runs on the reviewer's own Claude Code login.** `claude -p`
+uses whatever `claude` is signed in with; the app holds no key. On a Claude
+subscription (`apiKeySource: "none"` in the init event — verified on this
+machine, with no `ANTHROPIC_API_KEY` in the login shell) each question counts
+against the plan's usage, not money.
+
+`claude -p` still reports a `total_cost_usd` on every turn — what it would
+have cost at API prices. The app first showed that as "$0.11" on every
+answer, which read as a charge. Now each turn records whether its session ran
+on an API key (any `apiKeySource` other than `none`), and a cost is shown only
+then, as "Charged to your API key". Turns saved before this have no record and
+show no cost.
+
+A per-turn timeout (ten minutes — Claude may read many files) cancels a
+stuck process, as does closing the PR.
 
 ## Storage
 
