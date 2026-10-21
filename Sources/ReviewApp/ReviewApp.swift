@@ -30,5 +30,11 @@ struct ReviewApp: App {
                     .disabled(!model.pullRequests.contains { model.status(of: $0).isFinished })
             }
         }
+
+        Settings {
+            RepositoriesSettings()
+                .environment(model)
+                .task { await model.start() }
+        }
     }
 }

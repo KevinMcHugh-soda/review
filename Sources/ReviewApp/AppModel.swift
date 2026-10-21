@@ -23,10 +23,17 @@ final class AppModel {
     private var sessions: [PullRequestReference: ReviewSession] = [:]
     private var startup: Task<Void, Never>?
 
-    /// Pull requests waiting on the reviewer, from GitHub; empty until loaded.
+    /// Pull requests the reviewer is asked to review, assigned, or wrote,
+    /// from GitHub; empty until loaded.
     private(set) var inbox: [InboxItem] = []
+    private(set) var lastRefreshed: Date?
+
+    /// Whose pull requests the inbox searches, alphabetically. Empty means
+    /// every repository.
+    private(set) var trackedRepositories: [RepositoryName] = []
     private(set) var isLoadingInbox = false
     private(set) var inboxError: String?
+    private var isInboxStale = false
 
     /// Title and status of every open PR, fetched together so the sidebar can
     /// group them before each is loaded.
@@ -40,6 +47,7 @@ final class AppModel {
                 let services = await AppServices.start()
                 self.services = services
                 restoreOpenPullRequests(from: services.workspace)
+                trackedRepositories = services.trackedRepositories.load().sorted()
                 await checkTools()
                 await refresh()
             }
@@ -224,12 +232,19 @@ final class AppModel {
 
     // MARK: Inbox
 
-    /// Review requests not already open, for the sidebar's second section.
-    var unopenedInbox: [InboxItem] {
-        inbox.filter { !pullRequests.contains($0.reference) }
+    /// Asked to review or assigned, and not the reviewer's own, for the
+    /// sidebar's "Waiting on You". PRs already open are in their status group.
+    var waitingInbox: [InboxItem] {
+        inbox.filter { !$0.isAuthored && !pullRequests.contains($0.reference) }
     }
 
-    /// ⌘R: review requests, and the status of everything open.
+    /// The reviewer's own open pull requests, not already open here.
+    var authoredInbox: [InboxItem] {
+        inbox.filter { $0.isAuthored && !pullRequests.contains($0.reference) }
+    }
+
+    /// ⌘R and the toolbar's Refresh: the inbox, and the status of everything
+    /// open.
     func refresh() async {
         async let inbox: Void = refreshInbox()
         async let summaries: Void = refreshSummaries(of: pullRequests)
@@ -244,16 +259,46 @@ final class AppModel {
         summaries.merge(fetched) { _, new in new }
     }
 
+    /// A call while one is running makes that one go again when it ends, so
+    /// a repository tracked mid-refresh is not missed.
     func refreshInbox() async {
-        guard let services, !isLoadingInbox else { return }
+        guard let services else { return }
+        guard !isLoadingInbox else {
+            isInboxStale = true
+            return
+        }
         isLoadingInbox = true
         defer { isLoadingInbox = false }
-        do {
-            inbox = try await services.inbox() ?? []
-            inboxError = nil
-        } catch {
-            inboxError = "\(error)"
-        }
+        repeat {
+            isInboxStale = false
+            do {
+                inbox = try await services.inbox(in: trackedRepositories) ?? []
+                inboxError = nil
+                lastRefreshed = .now
+            } catch {
+                inboxError = "\(error)"
+            }
+        } while isInboxStale
+    }
+
+    // MARK: Tracked repositories
+
+    /// Adds a repository from typed or pasted text and refreshes the inbox.
+    func track(_ input: String) throws(RepositoryName.ParseError) {
+        let repository = try RepositoryName(parsing: input)
+        guard !trackedRepositories.contains(repository) else { return }
+        trackedRepositories = (trackedRepositories + [repository]).sorted()
+        didChangeTrackedRepositories()
+    }
+
+    func untrack(_ repositories: Set<RepositoryName>) {
+        trackedRepositories.removeAll { repositories.contains($0) }
+        didChangeTrackedRepositories()
+    }
+
+    private func didChangeTrackedRepositories() {
+        try? services?.trackedRepositories.save(trackedRepositories)
+        Task { await refreshInbox() }
     }
 
     var selectedSession: ReviewSession? {

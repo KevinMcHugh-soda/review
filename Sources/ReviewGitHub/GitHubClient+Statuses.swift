@@ -3,7 +3,7 @@ import ReviewCore
 import ReviewProcess
 
 extension GitHubClient {
-    /// The title and status of each pull request, in one GraphQL request per
+    /// The title, status and author of each pull request, in one GraphQL request per
     /// fifty — an alias per PR, since GraphQL has no "these PRs" lookup.
     /// One PR that cannot be seen leaves the rest: GitHub answers with partial
     /// data and an error, which `gh` reports as a failure but still prints.
@@ -29,7 +29,7 @@ extension GitHubClient {
     /// (`PullRequestReference` checks), so they are safe inside the quotes.
     static func summariesQuery(_ references: [PullRequestReference]) -> String {
         let fields = references.enumerated().map { index, reference in
-            #"pr\#(index): repository(owner: "\#(reference.owner)", name: "\#(reference.repository)") { pullRequest(number: \#(reference.number)) { title state isDraft } }"#
+            #"pr\#(index): repository(owner: "\#(reference.owner)", name: "\#(reference.repository)") { pullRequest(number: \#(reference.number)) { title state isDraft author { login } } }"#
         }
         return "query {\n\(fields.joined(separator: "\n"))\n}"
     }
@@ -44,7 +44,9 @@ extension GitHubClient {
                 let title: String
                 let state: String
                 let isDraft: Bool
+                let author: Author?
             }
+            struct Author: Decodable { let login: String }
             let data: [String: Repository?]
         }
         let response = try JSONDecoder().decode(Response.self, from: data)
@@ -55,7 +57,7 @@ extension GitHubClient {
             case "CLOSED": .closed
             default: node.isDraft ? .draft : .open
             }
-            return (reference, PullRequestSummary(reference: reference, title: node.title, status: status))
+            return (reference, PullRequestSummary(reference: reference, title: node.title, status: status, author: node.author?.login ?? "ghost"))
         }
         return Dictionary(pairs) { _, new in new }
     }

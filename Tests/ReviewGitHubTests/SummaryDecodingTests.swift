@@ -18,7 +18,7 @@ struct SummaryDecodingTests {
     func decodes() throws {
         let json = #"""
             {"data": {
-              "pr0": {"pullRequest": {"title": "Ready", "state": "OPEN", "isDraft": false}},
+              "pr0": {"pullRequest": {"title": "Ready", "state": "OPEN", "isDraft": false, "author": {"login": "dev"}}},
               "pr1": {"pullRequest": {"title": "WIP", "state": "OPEN", "isDraft": true}},
               "pr2": {"pullRequest": {"title": "Done", "state": "MERGED", "isDraft": false}},
               "pr3": null
@@ -27,6 +27,8 @@ struct SummaryDecodingTests {
             """#
         let summaries = try GitHubClient.decodeSummaries(Data(json.utf8), for: references)
         #expect(summaries[references[0]]?.status == .open)
+        #expect(summaries[references[0]]?.author == "dev")
+        #expect(summaries[references[1]]?.author == "ghost")
         #expect(summaries[references[1]]?.status == .draft)
         #expect(summaries[references[2]]?.status == .merged)
         #expect(summaries[references[2]]?.title == "Done")

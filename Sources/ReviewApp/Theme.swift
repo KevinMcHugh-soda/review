@@ -69,6 +69,10 @@ enum Theme {
     static let summaryHeight: CGFloat = 90
     static let sheetPadding: CGFloat = 20
 
+    // MARK: Settings
+    static let settingsWidth: CGFloat = 460
+    static let settingsHeight: CGFloat = 360
+
     // MARK: Panes
     /// Standard horizontal inset for pane content.
     static let gutter: CGFloat = 12

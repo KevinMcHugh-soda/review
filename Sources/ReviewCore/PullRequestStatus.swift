@@ -24,17 +24,19 @@ public enum PullRequestStatus: String, CaseIterable, Hashable, Sendable, Codable
     }
 }
 
-/// A pull request's title and status, fetched for every open PR at once so
+/// A pull request's title, status and author, fetched for every open PR at once so
 /// the sidebar can group them before any is loaded.
 public struct PullRequestSummary: Hashable, Sendable, Codable {
     public let reference: PullRequestReference
     public let title: String
     public let status: PullRequestStatus
+    public let author: String?
 
-    public init(reference: PullRequestReference, title: String, status: PullRequestStatus) {
+    public init(reference: PullRequestReference, title: String, status: PullRequestStatus, author: String? = nil) {
         self.reference = reference
         self.title = title
         self.status = status
+        self.author = author
     }
 }
 

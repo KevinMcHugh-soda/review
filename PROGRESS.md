@@ -347,6 +347,22 @@ Checked by snapshot on harmony#15035 (18 resolved threads, all collapsed) and
 the sidebar with review#1 under Merged. Close All was not pressed in a scripted
 run; it only edits the local open list.
 
+## Tracked repositories, and Waiting on You / Your Pull Requests
+
+Settings › Repositories (⌘,) picks the repositories the sidebar searches —
+sodahealth/harmony, dissonance and nexus for this reviewer. The old Review
+Requested section is now **Waiting on You** (asked to review *or* assigned,
+with the author on every row and an "assigned" tag) and **Your Pull Requests**
+(authored). One Refresh button in the sidebar's toolbar (⌘R, spinner while
+it runs, last-refreshed time in its tooltip) fetches all of it plus the open
+PRs' statuses. Open PR rows now show their author too. See plans/github.md.
+
+Checked by snapshot (`--sidebar on --settings on`, new launch options) with
+the three repositories tracked: eight PRs waiting, one of the reviewer's own
+(the other two already open), and the Settings pane listing the three.
+Adding and removing in Settings was not clicked in a scripted run; the model
+methods are small and the store is tested. **Tests: 127.**
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in

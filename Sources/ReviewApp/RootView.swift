@@ -5,11 +5,13 @@ import SwiftUI
 /// the code.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
+    @State private var columnVisibility = NavigationSplitViewVisibility.automatic
 
     var body: some View {
         @Bindable var model = model
 
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $model.selection) {
                 ForEach(PullRequestStatus.allCases, id: \.self) { status in
                     let group = model.pullRequests(with: status)
@@ -32,39 +34,28 @@ struct RootView: View {
                         }
                     }
                 }
-                Section {
-                    ForEach(model.unopenedInbox) { item in
-                        InboxRow(item: item)
-                            .tag(item.reference)
-                            .contextMenu {
-                                Link("Open on GitHub", destination: item.reference.webURL)
-                            }
-                    }
+                InboxSection(title: "Waiting on You", items: model.waitingInbox) {
                     if let error = model.inboxError {
-                        Text(error)
-                            .font(Theme.Fonts.meta)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                    } else if model.unopenedInbox.isEmpty, !model.isLoadingInbox {
-                        Text("Nothing waiting on you.")
-                            .font(Theme.Fonts.meta)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    HStack {
-                        Text("Review Requested")
-                        Spacer()
-                        if model.isLoadingInbox {
-                            ProgressView().controlSize(.mini)
-                        } else {
-                            Button("Refresh", systemImage: "arrow.clockwise") {
-                                Task { await model.refresh() }
-                            }
-                            .labelStyle(.iconOnly)
-                            .buttonStyle(.borderless)
-                            .help("Refresh review requests and statuses (⌘R)")
+                        Text(error).lineLimit(3)
+                    } else if model.trackedRepositories.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Nothing waiting on you in any repository.")
+                            SettingsLink { Text("Choose Repositories…") }
+                                .buttonStyle(.link)
                         }
+                    } else {
+                        Text("Nothing waiting on you in ^[\(model.trackedRepositories.count) repository](inflect: true).")
                     }
+                }
+                InboxSection(title: "Your Pull Requests", items: model.authoredInbox) {
+                    if model.inboxError == nil {
+                        Text("No open pull requests of yours.")
+                    }
+                }
+            }
+            .toolbar {
+                ToolbarItem {
+                    RefreshButton()
                 }
             }
             .onChange(of: model.selection) { _, reference in model.didSelect(reference) }
@@ -110,6 +101,11 @@ struct RootView: View {
         .navigationSubtitle(subtitle)
         .focusedSceneValue(\.reviewSession, model.selectedSession)
         .onOpenURL { model.handle($0) }
+        .task {
+            let options = LaunchOptions.current
+            if options.showsSidebar { columnVisibility = .all }
+            if options.opensSettings { openSettings() }
+        }
 
     }
 
