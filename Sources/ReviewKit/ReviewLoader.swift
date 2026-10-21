@@ -192,8 +192,11 @@ public struct ReviewLoader: Sendable {
         let patch = try await git.diff(from: mergeBase, to: pullRequest.head.sha, in: repository)
         let parsed = try UnifiedDiffParser.parse(patch)
         // Best effort: a repository without attributes, or a failure reading
-        // them, just means nothing is treated as generated.
-        let generated = (try? await git.generatedPaths(parsed.map(\.path), at: pullRequest.head.sha, in: repository)) ?? []
+        // them, just means nothing is treated as generated. The base branch's
+        // tip counts too, for a rule added after the PR branched.
+        let generated = (try? await git.generatedPaths(
+            parsed.map(\.path), atAnyOf: [pullRequest.head.sha, CheckoutStore.baseRef(pullRequest.base.name)], in: repository
+        )) ?? []
         let files = parsed.filter { !generated.contains($0.path) } + parsed.filter { generated.contains($0.path) }
         // Only worth computing when the base has moved past the branch point.
         let merge = mergeBase == pullRequest.base.sha

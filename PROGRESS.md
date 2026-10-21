@@ -363,6 +363,12 @@ the three repositories tracked: eight PRs waiting, one of the reviewer's own
 Adding and removing in Settings was not clicked in a scripted run; the model
 methods are small and the store is tested. **Tests: 127.**
 
+**Generated rules from the base branch.** A file is generated if the PR's
+head *or* the base branch's fetched tip says so — harmony#13296 predates
+harmony's `internal/*api/client.go` rule. See plans/code-viewer.md. Checked
+with `review show sodahealth/harmony#13296`: six generated files, last.
+**Tests: 128.**
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
