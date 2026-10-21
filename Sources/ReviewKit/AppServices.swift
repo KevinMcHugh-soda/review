@@ -57,6 +57,12 @@ public struct AppServices: Sendable {
         return try await GitHubClient(gh: gh, environment: environment.variables).reviewRequests()
     }
 
+    /// Titles and statuses of the given pull requests; nil when gh is missing.
+    public func summaries(of references: [PullRequestReference]) async throws -> [PullRequestReference: PullRequestSummary]? {
+        guard let gh = environment.locate(Tool.gh.executableName) else { return nil }
+        return try await GitHubClient(gh: gh, environment: environment.variables).summaries(of: references)
+    }
+
     /// Nil when gh is missing.
     public var publisher: ReviewPublisher? {
         guard let gh = environment.locate(Tool.gh.executableName) else { return nil }

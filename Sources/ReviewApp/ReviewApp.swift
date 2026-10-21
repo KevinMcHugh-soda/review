@@ -24,8 +24,10 @@ struct ReviewApp: App {
         .commands {
             ReviewCommands()
             CommandGroup(after: .sidebar) {
-                Button("Refresh Review Requests") { Task { await model.refreshInbox() } }
+                Button("Refresh Pull Requests") { Task { await model.refresh() } }
                     .keyboardShortcut("r", modifiers: .command)
+                Button("Close Merged and Closed Pull Requests") { model.closeFinished() }
+                    .disabled(!model.pullRequests.contains { model.status(of: $0).isFinished })
             }
         }
     }

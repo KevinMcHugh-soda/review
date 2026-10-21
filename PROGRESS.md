@@ -324,13 +324,36 @@ Also seen for the first time on a real PR (a harmony PR the reviewer had
 open): generated files from `.gitattributes` at the bottom of the file list,
 tagged, and viewed files folded to their headers in the all-files scroll.
 
+## Status groups, the description, and collapsible threads
+
+The sidebar groups open PRs by status — Open, Draft, Merged, Closed — from one
+GraphQL request for all of them (`GitHubClient.summaries(of:)`, an alias per
+PR), made at launch, on ⌘R, and when a PR is opened. A PR whose status is not
+known yet sits in Open; a loaded PR's own status wins over the fetched one.
+Merged and Closed headers have Close All, and View has Close Merged and Closed
+Pull Requests. Dragging and Move Up/Down work within a group: the group's
+members keep their slots in the saved order (`ListReordering.moving(_:where:…)`).
+Rows show the fetched title before the PR is loaded, which settles the old
+"cache PR titles" item.
+
+The inspector starts with the PR's description, collapsible. Thread cards
+collapse to a one-line preview from a chevron; resolved threads start
+collapsed, and selecting a thread's marker in the code opens it. `<!-- … -->`
+comments — PR templates' prompts, Cursor's automation IDs — are dropped before
+rendering any GitHub Markdown (`GitHubMarkdown.removingHiddenComments`).
+`--inspector on` shows the inspector in a snapshot run.
+
+Checked by snapshot on harmony#15035 (18 resolved threads, all collapsed) and
+the sidebar with review#1 under Merged. Close All was not pressed in a scripted
+run; it only edits the local open list.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
    `deinit`; flush pending note saves on quit.
 2. Navigation on removed lines (a base worktree) and in the after-merge view.
 3. Sync viewed state with GitHub (`markFileAsViewed`).
-4. Cache PR titles for the sidebar; the inbox's quieter title colour.
+4. The inbox's quieter title colour.
 
 ## Things that bit us
 
@@ -478,3 +501,8 @@ rewrote it.
 too, as an estimate at API prices. Shown as "$0.11", it made the reviewer ask
 whether the app had switched to the API. It is shown only for API-key
 sessions now.
+
+**`gh api graphql` exits 1 on partial data.** One alias that cannot be resolved
+puts `null` under it and an `errors` array beside `data`, and `gh` fails — but
+still prints the whole response. The status fetch decodes stdout whatever the
+exit status, and fails only when it cannot.

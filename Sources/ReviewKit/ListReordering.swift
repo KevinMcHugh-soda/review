@@ -26,4 +26,29 @@ public enum ListReordering {
         result.insert(item, at: target)
         return result
     }
+
+    /// A move within a subset of the list — one sidebar group. The offsets
+    /// count within the subset; the subset's members keep the slots they had
+    /// in the whole list, and everything else stays where it is.
+    public static func moving<T>(
+        _ list: [T],
+        where isMember: (T) -> Bool,
+        fromOffsets offsets: IndexSet,
+        toOffset destination: Int
+    ) -> [T] {
+        let slots = list.indices.filter { isMember(list[$0]) }
+        let reordered = moving(slots.map { list[$0] }, fromOffsets: offsets, toOffset: destination)
+        var result = list
+        for (slot, item) in zip(slots, reordered) { result[slot] = item }
+        return result
+    }
+
+    /// Move Up / Move Down within a subset, as `moving(_:where:fromOffsets:toOffset:)`.
+    public static func moving<T: Equatable>(_ item: T, by offset: Int, in list: [T], where isMember: (T) -> Bool) -> [T] {
+        let slots = list.indices.filter { isMember(list[$0]) }
+        let reordered = moving(item, by: offset, in: slots.map { list[$0] })
+        var result = list
+        for (slot, item) in zip(slots, reordered) { result[slot] = item }
+        return result
+    }
 }

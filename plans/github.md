@@ -12,6 +12,7 @@ pages results with `--paginate`. The app never sees a token.
 | Changed files (names and status only — diffs are computed locally, see checkout-and-diff.md) | `gh api --paginate repos/{o}/{r}/pulls/{n}/files` |
 | Existing review threads, with resolved/outdated state | `gh api graphql` — `pullRequest.reviewThreads`, since REST has no resolved flag |
 | The reviewer's pending review, if one exists | `gh api repos/{o}/{r}/pulls/{n}/reviews`, filtered to `state == PENDING` for the viewer |
+| Title and status of every open PR, for the sidebar's groups | `gh api graphql` — one `repository(…) { pullRequest(…) { title state isDraft } }` alias per PR, fifty to a request |
 | Review-requested inbox (M6) | `gh search prs --review-requested=@me --state=open --json …` |
 
 ## Posting — as built

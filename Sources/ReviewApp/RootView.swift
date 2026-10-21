@@ -11,28 +11,25 @@ struct RootView: View {
 
         NavigationSplitView {
             List(selection: $model.selection) {
-                if !model.pullRequests.isEmpty {
-                    Section("Open") {
-                        ForEach(model.pullRequests, id: \.self) { reference in
-                            PullRequestRow(reference: reference, session: model.session(for: reference))
+                ForEach(PullRequestStatus.allCases, id: \.self) { status in
+                    let group = model.pullRequests(with: status)
+                    if !group.isEmpty {
+                        Section {
+                            ForEach(group, id: \.self) { reference in
+                                PullRequestRow(
+                                    reference: reference,
+                                    session: model.session(for: reference),
+                                    summary: model.summaries[reference]
+                                )
                                 .tag(reference)
-                                .contextMenu {
-                                    Link("Open on GitHub", destination: reference.webURL)
-                                    Divider()
-                                    // The keyboard and menu way to do what a drag does.
-                                    Button("Move to Top") { model.moveOpenPullRequestToTop(reference) }
-                                        .disabled(model.pullRequests.first == reference)
-                                    Button("Move Up") { model.moveOpenPullRequest(reference, by: -1) }
-                                        .disabled(model.pullRequests.first == reference)
-                                    Button("Move Down") { model.moveOpenPullRequest(reference, by: 1) }
-                                        .disabled(model.pullRequests.last == reference)
-                                    Divider()
-                                    Button("Close") { model.close(reference) }
-                                }
+                                .contextMenu { rowMenu(reference, in: group) }
+                            }
+                            // Drag to reorder within the group; the order is
+                            // saved and survives a relaunch.
+                            .onMove { model.moveOpenPullRequests(in: status, fromOffsets: $0, toOffset: $1) }
+                        } header: {
+                            GroupHeader(status: status, count: group.count)
                         }
-                        // Drag to reorder; the order is saved and survives a
-                        // relaunch.
-                        .onMove { model.moveOpenPullRequests(fromOffsets: $0, toOffset: $1) }
                     }
                 }
                 Section {
@@ -61,11 +58,11 @@ struct RootView: View {
                             ProgressView().controlSize(.mini)
                         } else {
                             Button("Refresh", systemImage: "arrow.clockwise") {
-                                Task { await model.refreshInbox() }
+                                Task { await model.refresh() }
                             }
                             .labelStyle(.iconOnly)
                             .buttonStyle(.borderless)
-                            .help("Refresh review requests (⌘R)")
+                            .help("Refresh review requests and statuses (⌘R)")
                         }
                     }
                 }
@@ -116,6 +113,21 @@ struct RootView: View {
 
     }
 
+    @ViewBuilder
+    private func rowMenu(_ reference: PullRequestReference, in group: [PullRequestReference]) -> some View {
+        Link("Open on GitHub", destination: reference.webURL)
+        Divider()
+        // The keyboard and menu way to do what a drag does.
+        Button("Move to Top") { model.moveOpenPullRequestToTop(reference) }
+            .disabled(group.first == reference)
+        Button("Move Up") { model.moveOpenPullRequest(reference, by: -1) }
+            .disabled(group.first == reference)
+        Button("Move Down") { model.moveOpenPullRequest(reference, by: 1) }
+            .disabled(group.last == reference)
+        Divider()
+        Button("Close") { model.close(reference) }
+    }
+
     private var title: String {
         guard let session = model.selectedSession else { return "Review" }
         return session.review?.pullRequest.title ?? session.reference.description
@@ -123,6 +135,6 @@ struct RootView: View {
 
     private var subtitle: String {
         guard let session = model.selectedSession, let pullRequest = session.review?.pullRequest else { return "" }
-        return "\(session.reference) · \(pullRequest.author) · \(pullRequest.head.name) → \(pullRequest.base.name)"
+        return "\(pullRequest.status.title) · \(session.reference) · \(pullRequest.author) · \(pullRequest.head.name) → \(pullRequest.base.name)"
     }
 }

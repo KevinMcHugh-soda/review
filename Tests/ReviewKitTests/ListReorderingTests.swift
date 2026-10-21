@@ -39,4 +39,15 @@ struct ListReorderingTests {
         #expect(ListReordering.moving("d", by: -list.count, in: list) == ["d", "a", "b", "c"])
         #expect(ListReordering.moving("z", by: 1, in: list) == list)
     }
+
+    /// The sidebar groups open PRs by status; a drag in one group names
+    /// offsets within it. Upper-case letters are one group here.
+    @Test("Moves within a group, leaving the other groups' rows where they were")
+    func dragWithinGroup() {
+        let mixed = ["A", "x", "B", "y", "C"]
+        let isUpper = { (item: String) in item == item.uppercased() }
+        #expect(ListReordering.moving(mixed, where: isUpper, fromOffsets: [2], toOffset: 0) == ["C", "x", "A", "y", "B"])
+        #expect(ListReordering.moving("A", by: 1, in: mixed, where: isUpper) == ["B", "x", "A", "y", "C"])
+        #expect(ListReordering.moving("x", by: 1, in: mixed, where: { !isUpper($0) }) == ["A", "y", "B", "x", "C"])
+    }
 }

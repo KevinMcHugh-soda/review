@@ -28,6 +28,10 @@ final class AppModel {
     private(set) var isLoadingInbox = false
     private(set) var inboxError: String?
 
+    /// Title and status of every open PR, fetched together so the sidebar can
+    /// group them before each is loaded.
+    private(set) var summaries: [PullRequestReference: PullRequestSummary] = [:]
+
     /// Asks the login shell for its environment, then checks the tools.
     /// Safe to call from several places at once: they all wait on one startup.
     func start() async {
@@ -37,7 +41,7 @@ final class AppModel {
                 self.services = services
                 restoreOpenPullRequests(from: services.workspace)
                 await checkTools()
-                await refreshInbox()
+                await refresh()
             }
         }
         await startup?.value
@@ -68,6 +72,7 @@ final class AppModel {
             await selected.scriptedComment(lines: comment.lines, note: comment.note, ask: comment.ask)
         }
         if options.opensPostSheet { selected.isPostSheetShown = true }
+        if options.showsInspector { selected.isInspectorShown = true }
         if let hover = options.hover {
             await selected.performWhenReady(.definition, line: 0, column: 0, onlyWait: true)
             if let row = selected.document?.row(forNewLine: hover.line, file: selected.selectedFileIndex),
@@ -115,6 +120,9 @@ final class AppModel {
             pullRequests.insert(reference, at: 0)
             sessions[reference] = ReviewSession(reference: reference)
             saveOpenPullRequests()
+            if summaries[reference] == nil {
+                Task { await refreshSummaries(of: [reference]) }
+            }
         }
         selection = reference
     }
@@ -128,17 +136,43 @@ final class AppModel {
         saveOpenPullRequests()
     }
 
+    /// Closes every open PR with this status — Merged and Closed are done with.
+    func closeAll(_ status: PullRequestStatus) {
+        for reference in pullRequests(with: status) { close(reference) }
+    }
+
+    /// Closes every merged and closed PR at once.
+    func closeFinished() {
+        for status in PullRequestStatus.allCases where status.isFinished { closeAll(status) }
+    }
+
+    // MARK: Status groups
+
+    /// From the loaded PR when there is one, as it is the freshest; a PR whose
+    /// status is not known yet counts as open.
+    func status(of reference: PullRequestReference) -> PullRequestStatus {
+        session(for: reference)?.review?.pullRequest.status ?? summaries[reference]?.status ?? .open
+    }
+
+    /// The open PRs in one sidebar group, in the saved order.
+    func pullRequests(with status: PullRequestStatus) -> [PullRequestReference] {
+        pullRequests.filter { self.status(of: $0) == status }
+    }
+
     // MARK: Reordering the open list
 
-    /// A drag within the sidebar's Open section.
-    func moveOpenPullRequests(fromOffsets offsets: IndexSet, toOffset destination: Int) {
-        pullRequests = ListReordering.moving(pullRequests, fromOffsets: offsets, toOffset: destination)
+    /// A drag within one status group; offsets count within the group.
+    func moveOpenPullRequests(in status: PullRequestStatus, fromOffsets offsets: IndexSet, toOffset destination: Int) {
+        pullRequests = ListReordering.moving(
+            pullRequests, where: { self.status(of: $0) == status }, fromOffsets: offsets, toOffset: destination
+        )
         saveOpenPullRequests()
     }
 
-    /// Move Up / Move Down from a row's menu.
+    /// Move Up / Move Down from a row's menu, within its group.
     func moveOpenPullRequest(_ reference: PullRequestReference, by offset: Int) {
-        pullRequests = ListReordering.moving(reference, by: offset, in: pullRequests)
+        let status = status(of: reference)
+        pullRequests = ListReordering.moving(reference, by: offset, in: pullRequests) { self.status(of: $0) == status }
         saveOpenPullRequests()
     }
 
@@ -193,6 +227,21 @@ final class AppModel {
     /// Review requests not already open, for the sidebar's second section.
     var unopenedInbox: [InboxItem] {
         inbox.filter { !pullRequests.contains($0.reference) }
+    }
+
+    /// ⌘R: review requests, and the status of everything open.
+    func refresh() async {
+        async let inbox: Void = refreshInbox()
+        async let summaries: Void = refreshSummaries(of: pullRequests)
+        _ = await (inbox, summaries)
+    }
+
+    /// Failure leaves the last known statuses; the sidebar still works.
+    private func refreshSummaries(of references: [PullRequestReference]) async {
+        guard let services, !references.isEmpty,
+              let fetched = try? await services.summaries(of: references)
+        else { return }
+        summaries.merge(fetched) { _, new in new }
     }
 
     func refreshInbox() async {

@@ -13,6 +13,7 @@ import ReviewKit
 ///   UTF-16 column once the servers are ready.
 /// - `--comment <start>[-<end>] --note <text> [--ask]` adds a draft on those
 ///   head-side lines, and with `--ask` asks Claude and waits for the answer.
+/// - `--inspector on` shows the drafts inspector: the description and threads.
 /// - `--post-sheet` opens the Post Review sheet (it only plans; nothing is
 ///   sent without pressing Post).
 /// - `--hover <line>:<column>` shows the hover for the symbol at a head-side
@@ -37,6 +38,7 @@ struct LaunchOptions {
     let navigation: (action: NavigationAction, line: Int, column: Int)?
     let comment: (lines: ClosedRange<Int>, note: String, ask: Bool)?
     let opensPostSheet: Bool
+    let showsInspector: Bool
     let hover: (line: Int, column: Int)?
     let snapshotPath: String?
 
@@ -70,6 +72,7 @@ struct LaunchOptions {
             comment = nil
         }
         opensPostSheet = arguments.contains("--post-sheet")
+        showsInspector = value(after: "--inspector") == "on"
         let hoverParts = value(after: "--hover")?.split(separator: ":").compactMap { Int($0) } ?? []
         hover = hoverParts.count == 2 ? (hoverParts[0], hoverParts[1]) : nil
         snapshotPath = environment["REVIEW_SNAPSHOT"]
