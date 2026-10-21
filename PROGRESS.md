@@ -369,6 +369,19 @@ harmony's `internal/*api/client.go` rule. See plans/code-viewer.md. Checked
 with `review show sodahealth/harmony#13296`: six generated files, last.
 **Tests: 128.**
 
+## Block Markdown in descriptions and threads
+
+Descriptions, thread comments, Claude's answers and hovers share one renderer.
+`GitHubMarkdown.blocks` (ReviewKit, tested in `MarkdownBlocksTests`) parses
+the block structure GitHub PR bodies use — bullet, numbered and task lists
+with nesting, pipe tables with column alignment, block quotes, setext and ATX
+headings, `<details>`/`<summary>`, reference links (`[EXP-1200]: url` is
+resolved and hidden) and inline HTML like `<b>` and `<br>`. Views in
+`ReviewApp/Markdown/` lay the blocks out; SwiftUI's inline Markdown still
+does emphasis, code spans and links inside each block. Not full CommonMark:
+nested lists indented short of the content column are accepted, and HTML
+outside `<details>` and a few inline tags is stripped.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in

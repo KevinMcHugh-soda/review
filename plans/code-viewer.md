@@ -111,7 +111,7 @@ on them, caught by a test.
 ### Hover and the ⌘ underline
 
 Resting the pointer on a symbol for 0.6 s asks the language server for its
-hover and shows it in a popover, rendered as Markdown (code fences, rules).
+hover and shows it in a popover, rendered as Markdown by the shared `GitHubMarkdown.blocks` renderer (code fences, rules, lists, tables).
 Holding ⌘ underlines the symbol under the pointer and shows a pointing hand —
 what ⌘-click would jump to.
 
