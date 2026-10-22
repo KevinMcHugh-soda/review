@@ -13,25 +13,23 @@ struct RootView: View {
 
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $model.selection) {
-                ForEach(PullRequestStatus.allCases, id: \.self) { status in
+                ForEach(shownStatuses, id: \.self) { status in
                     let group = model.pullRequests(with: status)
-                    if !group.isEmpty {
-                        Section {
-                            ForEach(group, id: \.self) { reference in
-                                PullRequestRow(
-                                    reference: reference,
-                                    session: model.session(for: reference),
-                                    summary: model.summaries[reference]
-                                )
-                                .tag(reference)
-                                .contextMenu { rowMenu(reference, in: group) }
-                            }
-                            // Drag to reorder within the group; the order is
-                            // saved and survives a relaunch.
-                            .onMove { model.moveOpenPullRequests(in: status, fromOffsets: $0, toOffset: $1) }
-                        } header: {
-                            GroupHeader(status: status, count: group.count)
+                    Section {
+                        ForEach(group, id: \.self) { reference in
+                            PullRequestRow(
+                                reference: reference,
+                                session: model.session(for: reference),
+                                summary: model.summaries[reference]
+                            )
+                            .tag(reference)
+                            .contextMenu { rowMenu(reference, in: group) }
                         }
+                        // Drag to reorder within the group; the order is
+                        // saved and survives a relaunch.
+                        .onMove { model.moveOpenPullRequests(in: status, fromOffsets: $0, toOffset: $1) }
+                    } header: {
+                        GroupHeader(status: status, count: group.count)
                     }
                 }
                 InboxSection(title: "Waiting on You", items: model.waitingInbox) {
@@ -53,6 +51,11 @@ struct RootView: View {
                     }
                 }
             }
+            // A group appearing or emptying makes a new list. Inserting or
+            // removing a collapsible section in place leaves AppKit's outline
+            // view holding the freed section, and its next tracking-area pass
+            // crashes (EXC_BAD_ACCESS in -[NSOutlineView rowForItem:]).
+            .id(shownStatuses)
             .toolbar {
                 ToolbarItem {
                     RefreshButton()
@@ -122,6 +125,11 @@ struct RootView: View {
             .disabled(group.last == reference)
         Divider()
         Button("Close") { model.close(reference) }
+    }
+
+    /// The status groups with a PR in them; empty ones are not shown.
+    private var shownStatuses: [PullRequestStatus] {
+        PullRequestStatus.allCases.filter { !model.pullRequests(with: $0).isEmpty }
     }
 
     private var title: String {

@@ -18,6 +18,9 @@ struct InboxRow: View {
                     .font(Theme.Fonts.rowTitle)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                if item.isApproved {
+                    ApprovedMark()
+                }
                 if item.isDraft {
                     StateTag(text: "draft")
                 }

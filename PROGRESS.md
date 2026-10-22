@@ -388,6 +388,15 @@ does emphasis, code spans and links inside each block. Not full CommonMark:
 nested lists indented short of the content column are accepted, and HTML
 outside `<details>` and a few inline tags is stripped.
 
+## Approved marks in the sidebar
+
+A green `checkmark.circle.fill` (`ApprovedMark`) follows the title of any PR
+whose reviewers' latest opinionated reviews include an approval — not
+`reviewDecision`, which is null in repositories that don't require reviews.
+The summaries GraphQL query asks for `latestOpinionatedReviews`; `gh search
+prs` can't return review state, so `GitHubClient.inbox` runs that query over
+the search results afterwards, and leaves every item unmarked if it fails.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
@@ -562,3 +571,10 @@ dispatch). Never block in a task.
 its own queue, and Swift's runtime isolation check traps (`EXC_BREAKPOINT` in
 `dispatch_assert_queue`) as soon as an answer's notification is shown. Use the
 `async` form of a framework API from main-actor code.
+
+**Adding or removing a sidebar section in place can crash AppKit.** A status
+group appeared or emptied (a PR merged, or the last one in a group closed), and
+the next display cycle crashed in `-[NSOutlineView rowForItem:]` from
+`_addOutlineCellTrackingAreas`. AppKit was still holding the freed section.
+The sidebar List is now `.id`'d on the groups it shows, so a change to that set
+builds a new list instead of editing the old one.
