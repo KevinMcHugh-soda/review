@@ -320,10 +320,12 @@ final class CodeTextView: NSTextView {
             let item = NSMenuItem(title: action.title, action: #selector(navigate(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = action.rawValue
+            item.showShortcut(action.shortcut)
             return item
         }
         let comment = NSMenuItem(title: "Add Comment", action: #selector(addComment(_:)), keyEquivalent: "")
         comment.target = self
+        comment.showShortcut(.addComment)
         for (offset, item) in ([comment, .separator()] + items).enumerated() {
             menu.insertItem(item, at: offset)
         }
