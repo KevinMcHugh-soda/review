@@ -119,8 +119,10 @@ what ⌘-click would jump to.
 
 ⌘-click is Jump to Definition; the context menu and the Navigate menu offer
 the rest, with Xcode's shortcuts (⌃⌘J, ⌃⇧⌘J, ⌃⌘R, ⌃⌘I, ⌃⇧⌘H; back/forward
-⌃⌘← / ⌃⌘→). Results — references, implementations, callers — open in a
-resizable panel below the code. A jump into a changed file stays in Diff if
+⌃⌘← / ⌃⌘→). The context menu shows each item's shortcut, read from the same
+`KeyboardShortcut` the menu bar uses, so the two cannot drift. Results —
+references, implementations, callers — open in a resizable panel below the
+code. A jump into a changed file stays in Diff if
 the line is in a hunk and switches to the whole file if not; anywhere else
 opens as a plain file, labelled "Not changed in this PR" or "Outside the
 repository".
