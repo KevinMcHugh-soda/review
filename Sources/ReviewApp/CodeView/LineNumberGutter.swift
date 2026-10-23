@@ -17,6 +17,7 @@ final class LineNumberGutter: NSRulerView {
     var onSelectDraft: ((UUID) -> Void)?
     /// Clicking a row's GitHub thread mark.
     var onSelectThread: ((String) -> Void)?
+    private static let addComment = NSImage(systemSymbolName: "plus.circle.fill", accessibilityDescription: "Add comment")
     private static let bubble = NSImage(systemSymbolName: "text.bubble.fill", accessibilityDescription: "Draft comment")
     private static let thread = NSImage(
         systemSymbolName: "bubble.left.and.bubble.right.fill", accessibilityDescription: "Comment on GitHub"
@@ -75,16 +76,16 @@ final class LineNumberGutter: NSRulerView {
                 band.setFill()
                 NSRect(x: 0, y: y, width: bounds.width - 1, height: height).fill()
             }
-            // A draft of yours outranks a thread on GitHub for the one slot.
-            let badge: (NSImage?, NSColor)? =
-                if textView.draftRows[row] != nil { (Self.bubble, Theme.Code.draftMark) }
-                else if textView.threadRows[row] != nil { (Self.thread, Theme.Code.threadMark) }
-                else { nil }
-            if let (image, color) = badge, let image {
-                let size = min(Theme.Code.draftMarkWidth - 4, height - 2)
-                let rect = NSRect(x: 3, y: y + (height - size) / 2, width: size, height: size)
+            let size = min(Theme.Code.draftMarkWidth - 4, height - 2)
+            let badgeRect = NSRect(x: 3, y: y + (height - size) / 2, width: size, height: size)
+            // The selection's add button uses the badge slot on its first line.
+            // A draft or thread on that same line still shows on the other rows.
+            if row == textView.commentButtonRow {
+                Self.addComment?.withSymbolConfiguration(.init(paletteColors: [Theme.Code.draftMark]))?
+                    .draw(in: badgeRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            } else if let (image, color) = badge(on: row, in: textView), let image {
                 image.withSymbolConfiguration(.init(paletteColors: [color]))?
-                    .draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                    .draw(in: badgeRect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
             }
             if columns.old { draw(item.oldLine, rightEdge: oldRight, y: top, attributes: numberAttributes) }
             if columns.new { draw(item.newLine, rightEdge: newRight, y: top, attributes: numberAttributes) }
@@ -110,11 +111,36 @@ final class LineNumberGutter: NSRulerView {
             return point.y >= y && point.y < y + lineRect.height
         }
         guard let hit else { return }
+        // The plus sits in the badge column. The rest of that row still opens
+        // a draft or thread that is already there.
+        if textView.commentButtonRow == hit.row, point.x < Theme.Code.draftMarkWidth + Theme.Code.gutterPadding {
+            textView.onAddComment?()
+            return
+        }
         if let draft = textView.draftRows[hit.row] {
             onSelectDraft?(draft)
         } else if let thread = textView.threadRows[hit.row] {
             onSelectThread?(thread)
         }
+    }
+
+    override func resetCursorRects() {
+        super.resetCursorRects()
+        guard let textView = clientView as? CodeTextView, let buttonRow = textView.commentButtonRow else { return }
+        for (row, lineRect) in textView.visibleRows(in: textView.visibleRect) where row == buttonRow {
+            let y = convert(NSPoint(x: 0, y: lineRect.minY), from: textView).y
+            addCursorRect(
+                NSRect(x: 0, y: y, width: Theme.Code.draftMarkWidth + Theme.Code.gutterPadding, height: lineRect.height),
+                cursor: .pointingHand
+            )
+        }
+    }
+
+    /// A draft of yours outranks a thread on GitHub for the one slot.
+    private func badge(on row: Int, in textView: CodeTextView) -> (NSImage?, NSColor)? {
+        if textView.draftRows[row] != nil { (Self.bubble, Theme.Code.draftMark) }
+        else if textView.threadRows[row] != nil { (Self.thread, Theme.Code.threadMark) }
+        else { nil }
     }
 
     private func draw(_ number: Int?, rightEdge: CGFloat, y: CGFloat, attributes: [NSAttributedString.Key: Any]) {

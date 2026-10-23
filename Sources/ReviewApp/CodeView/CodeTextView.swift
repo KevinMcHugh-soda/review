@@ -16,7 +16,9 @@ final class CodeTextView: NSTextView {
     /// ⌘-click and the context menu's navigation items. The character index
     /// is in the text view's string.
     var onNavigate: ((NavigationAction, Int) -> Void)?
-    var onAddComment: (() -> Void)?
+    var onAddComment: (() -> Void)? {
+        didSet { refreshCommentButton() }
+    }
     /// Clicking a collapsed gap between hunks, by row.
     var onExpandGap: ((Int) -> Void)?
     /// Clicking a file's header in the all-files view, by row.
@@ -30,6 +32,12 @@ final class CodeTextView: NSTextView {
     private var hoveredWord: NSRange?
     private var underlinedWord: NSRange?
     private var pointerTracking: NSTrackingArea?
+    /// The first code row of a highlighted selection. The gutter draws an
+    /// add-comment button there. Nil for a caret, or a pane that cannot comment.
+    var commentButtonRow: Int? {
+        didSet { updateCommentButtonChrome() }
+    }
+
     /// Rows covered by a draft, which the gutter marks.
     var draftRows: [Int: UUID] = [:] {
         didSet { enclosingScrollView?.verticalRulerView?.needsDisplay = true }
@@ -157,6 +165,36 @@ final class CodeTextView: NSTextView {
         setSelectedRange(range)
         if range.length > 0 { showFindIndicator(for: range) }
         window?.makeFirstResponder(self)
+    }
+
+    override func setSelectedRanges(
+        _ ranges: [NSValue], affinity: NSSelectionAffinity, stillSelecting stillSelectingFlag: Bool
+    ) {
+        super.setSelectedRanges(ranges, affinity: affinity, stillSelecting: stillSelectingFlag)
+        // Wait until the drag ends, so the button appears once the highlight is chosen.
+        if !stillSelectingFlag { refreshCommentButton() }
+    }
+
+    /// Shows the gutter's add-comment button on the first code row of a real
+    /// selection. A caret is not a highlight, and the base side of a split has
+    /// no `onAddComment`.
+    func refreshCommentButton() {
+        let range = selectedRange()
+        let row: Int? =
+            if onAddComment == nil || range.length == 0 {
+                nil
+            } else if let rows = rows(in: range) {
+                rows.first { self.rows.indices.contains($0) && self.rows[$0].isCode }
+            } else {
+                nil
+            }
+        if commentButtonRow != row { commentButtonRow = row }
+    }
+
+    private func updateCommentButtonChrome() {
+        guard let gutter = enclosingScrollView?.verticalRulerView else { return }
+        gutter.needsDisplay = true
+        gutter.window?.invalidateCursorRects(for: gutter)
     }
 
     override func mouseDown(with event: NSEvent) {
