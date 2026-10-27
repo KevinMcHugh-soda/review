@@ -71,6 +71,9 @@ final class CodePane: NSObject, NSTextViewDelegate {
     }
 
     func textViewDidChangeSelection(_ notification: Notification) {
+        // Mouse drags update the selection without a final `setSelectedRanges`
+        // on some paths; the gutter button follows either way.
+        textView.refreshCommentButton()
         let range = textView.selectedRange()
         guard let cursor = textView.cursor(at: range.location) else { return }
         let rows = textView.rows(in: range)
