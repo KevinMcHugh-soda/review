@@ -164,10 +164,13 @@ extension ReviewSession {
     /// at a head-side line. Gives up after a minute.
     func performWhenReady(_ action: NavigationAction, line: Int, column: Int, onlyWait: Bool = false) async {
         let deadline = ContinuousClock.now + .seconds(60)
+        // Taken now: in the all-files view, scrolling reselects whichever
+        // file is at the top while the servers start.
+        let file = selectedFileIndex
         while ContinuousClock.now < deadline {
             let serversReady = !serverStatus.isEmpty && serverStatus.values.allSatisfy { $0 == .ready }
             if onlyWait, navigationState == .ready, serversReady, document != nil { return }
-            if navigationState == .ready, serversReady, let row = document?.row(forNewLine: line, file: selectedFileIndex) {
+            if navigationState == .ready, serversReady, let row = document?.row(forNewLine: line, file: file) {
                 await perform(action, at: Cursor(row: row, column: column))
                 return
             }
@@ -187,6 +190,12 @@ extension ReviewSession {
     }
 
     private func show(_ location: CodeLocation) {
+        let shownKey = documentKey
+        defer {
+            // A jump within the document on screen loads nothing, so only
+            // this call can open the gap or fold that hides the line.
+            if documentKey == shownKey, let document { didShow(document) }
+        }
         let relative = worktree.flatMap { location.path(relativeTo: $0) }
         let length = location.endLine == location.line ? max(location.endColumn - location.column, 0) : 0
         if let relative, let index = files.firstIndex(where: { $0.newPath == relative }) {

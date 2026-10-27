@@ -454,3 +454,11 @@ file list following the top row, it jumped back. Headers reveal to the top.
 `tree-sitter-yaml` 0.7.1+ guards `scanner.c` with a relative `fileExists`,
 which is always false under SwiftPM; the build links fine until something
 calls the language. Pinned to 0.7.0, whose manifest lists it.
+
+**A jump within the file on screen went nowhere when the line was hidden.**
+Opening the gap or switching to the whole file happened only when a document
+loaded, and a same-file jump loads nothing — ⌘-click on a method defined in the
+same file, above its hunk, did nothing. `show` now runs that step itself when
+the document stays the same. Scripted `--navigate` in the all-files view also
+timed out: scrolling reselected the top file before the servers were ready, so
+it now takes the file when it starts waiting.

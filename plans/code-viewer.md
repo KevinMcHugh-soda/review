@@ -77,7 +77,8 @@ Split and File modes.
   header only ("… · viewed · click to show"); clicking a header folds or
   unfolds that file.
 - **Jumps into hidden code** open what hides it — the file's fold, then the
-  gap holding the line — instead of leaving the view.
+  gap holding the line — instead of leaving the view. This includes a
+  jump within the file already shown, which loads no new document.
 - File mode across all files may mix head and after-merge text; the
   document records which files are after-merge, and navigation and comments
   are off on those rows only.
