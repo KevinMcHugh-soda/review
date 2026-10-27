@@ -579,3 +579,11 @@ the next display cycle crashed in `-[NSOutlineView rowForItem:]` from
 `_addOutlineCellTrackingAreas`. AppKit was still holding the freed section.
 The sidebar List is now `.id`'d on the groups it shows, so a change to that set
 builds a new list instead of editing the old one.
+
+**A jump within the file on screen went nowhere when the line was hidden.**
+Opening the gap or switching to the whole file happened only when a document
+loaded, and a same-file jump loads nothing — ⌘-click on a method defined in the
+same file, above its hunk, did nothing. `show` now runs that step itself when
+the document stays the same. Scripted `--navigate` in the all-files view also
+timed out: scrolling reselected the top file before the servers were ready, so
+it now takes the file when it starts waiting.
