@@ -134,7 +134,8 @@ navigation logic has no unit tests — it was exercised through the app.
 
 ## Milestone 4 — draft and ask ✅
 
-Select lines, Add Comment (⌘⇧M or the context menu), write what you think;
+Select lines (or just place the cursor), Add Comment (⌘⇧M or the context menu,
+which shows each item's shortcut as the menu bar does), write what you think;
 ask Claude about it (⌘↩) or about every draft at once (⌥⌘↩), and follow up.
 Drafts live in a trailing inspector (⌥⌘0), are marked in the gutter, and are
 saved per PR.
@@ -312,13 +313,98 @@ spf13/cobra#2337 (a GitHub Actions workflow); tests cover keys, values,
 numbers, booleans, comments (JSONC), anchors, and each language's precedence
 (flipping JSON's makes its test fail). **Tests: 107.**
 
+## Reordering open PRs
+
+Drag rows in the sidebar's Open section, or use Move to Top / Move Up / Move
+Down in a row's menu; the order is saved with the open list. The move rules
+(SwiftUI's `onMove` contract, where the destination counts positions before
+removal) are in `ListReordering` with tests. **Not exercised by hand** — a drag
+needs a real pointer; the sidebar was rendered to check it still draws.
+
+Also seen for the first time on a real PR (a harmony PR the reviewer had
+open): generated files from `.gitattributes` at the bottom of the file list,
+tagged, and viewed files folded to their headers in the all-files scroll.
+
+## Status groups, the description, and collapsible threads
+
+The sidebar groups open PRs by status — Open, Draft, Merged, Closed — from one
+GraphQL request for all of them (`GitHubClient.summaries(of:)`, an alias per
+PR), made at launch, on ⌘R, and when a PR is opened. A PR whose status is not
+known yet sits in Open; a loaded PR's own status wins over the fetched one.
+Merged and Closed headers have Close All, and View has Close Merged and Closed
+Pull Requests. Dragging and Move Up/Down work within a group: the group's
+members keep their slots in the saved order (`ListReordering.moving(_:where:…)`).
+Rows show the fetched title before the PR is loaded, which settles the old
+"cache PR titles" item.
+
+The inspector starts with the PR's description, collapsible. Thread cards
+collapse to a one-line preview from a chevron; resolved threads start
+collapsed, and selecting a thread's marker in the code opens it. `<!-- … -->`
+comments — PR templates' prompts, Cursor's automation IDs — are dropped before
+rendering any GitHub Markdown (`GitHubMarkdown.removingHiddenComments`).
+`--inspector on` shows the inspector in a snapshot run.
+
+Checked by snapshot on harmony#15035 (18 resolved threads, all collapsed) and
+the sidebar with review#1 under Merged. Close All was not pressed in a scripted
+run; it only edits the local open list.
+
+## Tracked repositories, and Waiting on You / Your Pull Requests
+
+Settings › Repositories (⌘,) picks the repositories the sidebar searches —
+sodahealth/harmony, dissonance and nexus for this reviewer. The old Review
+Requested section is now **Waiting on You** (asked to review *or* assigned,
+with the author on every row and an "assigned" tag) and **Your Pull Requests**
+(authored). One Refresh button in the sidebar's toolbar (⌘R, spinner while
+it runs, last-refreshed time in its tooltip) fetches all of it plus the open
+PRs' statuses. Open PR rows now show their author too. See plans/github.md.
+
+Checked by snapshot (`--sidebar on --settings on`, new launch options) with
+the three repositories tracked: eight PRs waiting, one of the reviewer's own
+(the other two already open), and the Settings pane listing the three.
+Adding and removing in Settings was not clicked in a scripted run; the model
+methods are small and the store is tested. **Tests: 127.**
+
+**Generated rules from the base branch.** A file is generated if the PR's
+head *or* the base branch's fetched tip says so — harmony#13296 predates
+harmony's `internal/*api/client.go` rule. See plans/code-viewer.md. Checked
+with `review show sodahealth/harmony#13296`: six generated files, last.
+**Tests: 128.**
+
+**After merge uses the fetched base tip** rather than the API's `base.sha`,
+which was harmony#13296's branch point: Review called head the merged state;
+now `review show` says "base tip 45379bd5e639 · conflicts", matching GitHub's
+CONFLICTING. The diff's merge base is unchanged, to keep comment lines matching
+GitHub's diff. See plans/checkout-and-diff.md. **Tests: 129.**
+
+## Block Markdown in descriptions and threads
+
+Descriptions, thread comments, Claude's answers and hovers share one renderer.
+`GitHubMarkdown.blocks` (ReviewKit, tested in `MarkdownBlocksTests`) parses
+the block structure GitHub PR bodies use — bullet, numbered and task lists
+with nesting, pipe tables with column alignment, block quotes, setext and ATX
+headings, `<details>`/`<summary>`, reference links (`[EXP-1200]: url` is
+resolved and hidden) and inline HTML like `<b>` and `<br>`. Views in
+`ReviewApp/Markdown/` lay the blocks out; SwiftUI's inline Markdown still
+does emphasis, code spans and links inside each block. Not full CommonMark:
+nested lists indented short of the content column are accepted, and HTML
+outside `<details>` and a few inline tags is stripped.
+
+## Approved marks in the sidebar
+
+A green `checkmark.circle.fill` (`ApprovedMark`) follows the title of any PR
+whose reviewers' latest opinionated reviews include an approval — not
+`reviewDecision`, which is null in repositories that don't require reviews.
+The summaries GraphQL query asks for `latestOpinionatedReviews`; `gh search
+prs` can't return review state, so `GitHubClient.inbox` runs that query over
+the search results afterwards, and leaves every item unmarked if it fails.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
    `deinit`; flush pending note saves on quit.
 2. Navigation on removed lines (a base worktree) and in the after-merge view.
 3. Sync viewed state with GitHub (`markFileAsViewed`).
-4. Cache PR titles for the sidebar; the inbox's quieter title colour.
+4. The inbox's quieter title colour.
 
 ## Things that bit us
 
@@ -454,6 +540,45 @@ file list following the top row, it jumped back. Headers reveal to the top.
 `tree-sitter-yaml` 0.7.1+ guards `scanner.c` with a relative `fileExists`,
 which is always false under SwiftPM; the build links fine until something
 calls the language. Pinned to 0.7.0, whose manifest lists it.
+
+**A release tag can lack its generated parser.** tree-sitter-sql's tags carry
+only `scanner.c`; `parser.c` lives on `gh-pages`. Pinned there by revision.
+
+**Neovim queries use Lua patterns in `#match?`.** `%d` matched nothing as a
+regular expression, so SQL numbers came out as strings until the vendor script
+rewrote it.
+
+**`total_cost_usd` is not a bill.** `claude -p` reports it on a subscription
+too, as an estimate at API prices. Shown as "$0.11", it made the reviewer ask
+whether the app had switched to the API. It is shown only for API-key
+sessions now.
+
+**`gh api graphql` exits 1 on partial data.** One alias that cannot be resolved
+puts `null` under it and an `errors` array beside `data`, and `gh` fails — but
+still prints the whole response. The status fetch decodes stdout whatever the
+exit status, and fails only when it cannot.
+
+**A blocking pipe read in a task starves the whole app.** Every pipe reader
+was a `Task.detached` calling `availableData` or `readDataToEndOfFile`. Each one
+holds a cooperative-pool thread, and there are only about as many as cores.
+Each language server keeps two readers open for the life of the PR. After a
+few PRs, with Claude answering, 14 threads were blocked and git, gh and
+diff loads waited, so the app hung. All reads now go through
+`FileHandle.chunks`/`readAll()` in ReviewProcess (`readabilityHandler`, on
+dispatch). Never block in a task.
+
+**A completion-handler closure written in `@MainActor` code is `@MainActor`.**
+`UNUserNotificationCenter.add(_:withCompletionHandler:)` calls its handler on
+its own queue, and Swift's runtime isolation check traps (`EXC_BREAKPOINT` in
+`dispatch_assert_queue`) as soon as an answer's notification is shown. Use the
+`async` form of a framework API from main-actor code.
+
+**Adding or removing a sidebar section in place can crash AppKit.** A status
+group appeared or emptied (a PR merged, or the last one in a group closed), and
+the next display cycle crashed in `-[NSOutlineView rowForItem:]` from
+`_addOutlineCellTrackingAreas`. AppKit was still holding the freed section.
+The sidebar List is now `.id`'d on the groups it shows, so a change to that set
+builds a new list instead of editing the old one.
 
 **A jump within the file on screen went nowhere when the line was hidden.**
 Opening the gap or switching to the whole file happened only when a document

@@ -11,6 +11,8 @@ import Foundation
 /// Unknown lines are skipped, so new event types do not break a turn.
 public struct ClaudeStreamParser {
     private var buffer = Data()
+    /// From the init line: where the session's credentials came from.
+    private var apiKeySource: String?
 
     public init() {}
 
@@ -20,11 +22,28 @@ public struct ClaudeStreamParser {
         buffer.append(chunk)
         var events: [ClaudeEvent] = []
         while let newline = buffer.firstIndex(of: UInt8(ascii: "\n")) {
-            let line = buffer[buffer.startIndex..<newline]
+            let line = Data(buffer[buffer.startIndex..<newline])
             buffer = Data(buffer[buffer.index(after: newline)...])
-            events += Self.events(fromLine: Data(line))
+            for event in Self.events(fromLine: line) {
+                switch event {
+                case .started:
+                    apiKeySource = Self.apiKeySource(inLine: line)
+                    events.append(event)
+                case .finished(var result):
+                    // "none" is a Claude subscription login; any other source
+                    // — ANTHROPIC_API_KEY, an apiKeyHelper — is billed.
+                    result.isBilledToAPIKey = apiKeySource.map { $0 != "none" } ?? false
+                    events.append(.finished(result))
+                case .text, .messageBoundary, .activity:
+                    events.append(event)
+                }
+            }
         }
         return events
+    }
+
+    static func apiKeySource(inLine line: Data) -> String? {
+        (try? JSONSerialization.jsonObject(with: line) as? [String: Any])?["apiKeySource"] as? String
     }
 
     static func events(fromLine line: Data) -> [ClaudeEvent] {

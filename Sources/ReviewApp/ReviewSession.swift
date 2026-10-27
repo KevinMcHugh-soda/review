@@ -105,6 +105,10 @@ final class ReviewSession {
     var threadReplies: [String: String] = [:]
     var threadActions: [String: ThreadAction] = [:]
     var threadErrors: [String: String] = [:]
+    /// Threads whose header the reviewer clicked, flipping them from their
+    /// default: resolved ones start collapsed, the rest open.
+    var toggledThreads: Set<String> = []
+    var isDescriptionExpanded = true
 
     enum ThreadAction {
         case replying, resolving

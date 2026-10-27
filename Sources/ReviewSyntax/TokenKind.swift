@@ -24,7 +24,7 @@ public enum TokenKind: String, Hashable, Sendable, CaseIterable {
         let second = parts.dropFirst().first
 
         switch head {
-        case "keyword", "conditional", "repeat", "include", "exception": self = .keyword
+        case "keyword", "conditional", "repeat", "include", "exception", "storageclass": self = .keyword
         case "string":
             // `string.special.key` is a JSON object key: shown as a property,
             // so keys and values read apart.
@@ -38,6 +38,7 @@ public enum TokenKind: String, Hashable, Sendable, CaseIterable {
         case "type", "constructor", "namespace", "module": self = .type
         case "function", "method": self = .function
         case "property", "field", "attribute": self = .property
+        case "parameter": self = .parameter
         case "variable":
             switch second {
             case "parameter": self = .parameter

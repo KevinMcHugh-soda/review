@@ -51,10 +51,20 @@ public struct AppServices: Sendable {
 
     public var workspace: WorkspaceStore { WorkspaceStore(root: CheckoutStore.defaultRoot) }
 
-    /// Review-requested pull requests; nil when gh is missing.
-    public func inbox() async throws -> [InboxItem]? {
+    public var trackedRepositories: TrackedRepositoriesStore { TrackedRepositoriesStore(root: CheckoutStore.defaultRoot) }
+
+    /// Open pull requests the reviewer is asked to review, assigned, or wrote,
+    /// in these repositories — every repository when empty; nil when gh is
+    /// missing.
+    public func inbox(in repositories: [RepositoryName]) async throws -> [InboxItem]? {
         guard let gh = environment.locate(Tool.gh.executableName) else { return nil }
-        return try await GitHubClient(gh: gh, environment: environment.variables).reviewRequests()
+        return try await GitHubClient(gh: gh, environment: environment.variables).inbox(in: repositories)
+    }
+
+    /// Titles and statuses of the given pull requests; nil when gh is missing.
+    public func summaries(of references: [PullRequestReference]) async throws -> [PullRequestReference: PullRequestSummary]? {
+        guard let gh = environment.locate(Tool.gh.executableName) else { return nil }
+        return try await GitHubClient(gh: gh, environment: environment.variables).summaries(of: references)
     }
 
     /// Nil when gh is missing.

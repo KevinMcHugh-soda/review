@@ -107,6 +107,13 @@ public struct GitClient: Sendable {
             .stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The commit a ref names; nil when there is no such ref.
+    public func commit(named ref: String, in repository: URL) async -> String? {
+        let sha = try? await run(["rev-parse", "--verify", "--quiet", "\(ref)^{commit}"], in: repository)
+            .stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return sha?.isEmpty == false ? sha : nil
+    }
+
     /// A file's bytes at a commit; nil when the path does not exist there.
     public func contents(of path: String, at commit: String, in repository: URL) async throws -> Data? {
         do {
@@ -139,6 +146,18 @@ public struct GitClient: Sendable {
         return Set(stride(from: 0, to: fields.count - 2, by: 3).compactMap { offset in
             ["set", "true"].contains(fields[offset + 2]) ? fields[offset] : nil
         })
+    }
+
+    /// Paths marked generated at any of the commits. A PR's head is what it
+    /// declares itself, but a branch cut before the base added a rule — say,
+    /// for a code generator's output — should still get that rule, as the
+    /// file is generated whichever side says so.
+    public func generatedPaths(_ paths: [String], atAnyOf commits: [String], in repository: URL) async throws -> Set<String> {
+        var generated: Set<String> = []
+        for commit in Set(commits) {
+            generated.formUnion(try await generatedPaths(paths, at: commit, in: repository))
+        }
+        return generated
     }
 
     public func hasCommit(_ sha: String, in repository: URL) async -> Bool {

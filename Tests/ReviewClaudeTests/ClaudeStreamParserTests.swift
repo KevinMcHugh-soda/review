@@ -26,6 +26,24 @@ struct ClaudeStreamParserTests {
         // The streamed text is the answer as it was written.
         #expect(streamed.contains(result.text.prefix(20)))
         #expect(events.count { $0 == .messageBoundary } == 2)
+        // A subscription login: the cost is an estimate, not a charge.
+        #expect(!result.isBilledToAPIKey)
+    }
+
+    @Test("Marks a turn billed when the session ran on an API key")
+    func apiKeyBilling() {
+        var parser = ClaudeStreamParser()
+        let lines = [
+            #"{"type":"system","subtype":"init","session_id":"s","tools":["Read"],"apiKeySource":"ANTHROPIC_API_KEY"}"#,
+            #"{"type":"result","subtype":"success","is_error":false,"result":"ok","session_id":"s","total_cost_usd":0.07}"#,
+        ]
+        let events = parser.append(Data((lines.joined(separator: "\n") + "\n").utf8))
+        guard case .finished(let result) = events.last else {
+            Issue.record("no result")
+            return
+        }
+        #expect(result.isBilledToAPIKey)
+        #expect(result.costUSD == 0.07)
     }
 
     @Test("Reports a read the permission layer refused")

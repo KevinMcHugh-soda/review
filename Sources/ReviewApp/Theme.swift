@@ -42,6 +42,8 @@ enum Theme {
     static let dividerHitHeight: CGFloat = 8
     /// Room for a four-digit line number in a result row.
     static let resultLineNumberWidth: CGFloat = 36
+    /// A thread card's disclosure chevron.
+    static let chevronWidth: CGFloat = 12
 
     // MARK: Drafts inspector
     static let inspectorMinWidth: CGFloat = 300
@@ -56,6 +58,9 @@ enum Theme {
     static let readingTopInset: CGFloat = 28
     static let badgePaddingHorizontal: CGFloat = 6
     static let badgePaddingVertical: CGFloat = 1
+    /// Room for "10." so a numbered list's text lines up.
+    static let listMarkerWidth: CGFloat = 16
+    static let quoteBarWidth: CGFloat = 3
 
     // MARK: Hover
     static let hoverMaxWidth: CGFloat = 520
@@ -66,6 +71,10 @@ enum Theme {
     static let postSheetHeight: CGFloat = 640
     static let summaryHeight: CGFloat = 90
     static let sheetPadding: CGFloat = 20
+
+    // MARK: Settings
+    static let settingsWidth: CGFloat = 460
+    static let settingsHeight: CGFloat = 360
 
     // MARK: Panes
     /// Standard horizontal inset for pane content.
@@ -97,6 +106,16 @@ enum Theme {
         static let badge = Font.caption2.weight(.medium)
         /// A panel's header: the results panel's "References · 3 results".
         static let panelTitle = Font.callout.weight(.semibold)
+
+        /// Markdown headings, scaled for a narrow column: `#` steps up from
+        /// body, the rest are body text made heavier.
+        static func markdownHeading(level: Int) -> Font {
+            switch level {
+            case 1: .title3.weight(.semibold)
+            case 2: .headline
+            default: rowTitle
+            }
+        }
     }
 
     // MARK: Code

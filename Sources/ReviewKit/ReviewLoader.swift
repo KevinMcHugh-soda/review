@@ -10,14 +10,19 @@ public struct LoadedReview: Sendable {
     public let pullRequest: PullRequest
     /// Where the diff starts — GitHub's three-dot diff is merge base → head.
     public let mergeBase: String
+    /// The base branch as fetched, which the after-merge view merges into.
+    /// Can be ahead of `pullRequest.base.sha`: GitHub moves that only when
+    /// the PR itself changes. The merge base stays on the API's commit, so the
+    /// diff — and every line a comment is posted on — matches GitHub's.
+    public let baseTip: String
     /// The changed files, generated ones last — as GitHub orders them, and
     /// as the file list and the all-files view show them.
     public let files: [FileDiff]
-    /// Paths marked `linguist-generated` in `.gitattributes` at head:
-    /// collapsed until clicked, like GitHub.
+    /// Paths marked `linguist-generated` in `.gitattributes` at head or the
+    /// base tip: collapsed until clicked, like GitHub.
     public let generatedPaths: Set<String>
-    /// What merging would produce, when the base has moved since the PR
-    /// branched; nil when it has not, and head *is* the after-merge state.
+    /// What merging into the base tip would produce, when the base has moved
+    /// since the PR branched; nil when it has not, and head *is* the after-merge state.
     public let merge: GitClient.MergeResult?
     let repository: URL
     let git: GitClient
@@ -64,9 +69,9 @@ public struct LoadedReview: Sendable {
            let merged = try await git.contents(of: path, at: tree, in: repository).map({ String(decoding: $0, as: UTF8.self) }),
            merged != newText
         {
-            let patch = try await git.diff(from: pullRequest.base.sha, to: tree, paths: [path], in: repository)
+            let patch = try await git.diff(from: baseTip, to: tree, paths: [path], in: repository)
             let mergeDiff = try UnifiedDiffParser.parse(patch).first ?? FileDiff(oldPath: path, newPath: path, hunks: [])
-            let baseText = try await git.contents(of: path, at: pullRequest.base.sha, in: repository)
+            let baseText = try await git.contents(of: path, at: baseTip, in: repository)
                 .map { String(decoding: $0, as: UTF8.self) }
             return await Task.detached(priority: .userInitiated) {
                 CodeDocument(file: mergeDiff, oldText: baseText, newText: merged, mode: .file).from(.afterMerge)
@@ -188,21 +193,31 @@ public struct ReviewLoader: Sendable {
         try await checkouts.fetch(pullRequest, into: repository)
 
         progress(.diffing)
+        return try await Self.review(of: pullRequest, in: repository, git: git)
+    }
+
+    /// Everything after the fetch: the diff, which files are generated, and
+    /// the merge. Separate so tests can run it on a fixture with no GitHub.
+    static func review(of pullRequest: PullRequest, in repository: URL, git: GitClient) async throws -> LoadedReview {
         let mergeBase = try await git.mergeBase(pullRequest.base.sha, pullRequest.head.sha, in: repository)
         let patch = try await git.diff(from: mergeBase, to: pullRequest.head.sha, in: repository)
         let parsed = try UnifiedDiffParser.parse(patch)
+        let baseTip = await git.commit(named: CheckoutStore.baseRef(pullRequest.base.name), in: repository) ?? pullRequest.base.sha
         // Best effort: a repository without attributes, or a failure reading
-        // them, just means nothing is treated as generated.
-        let generated = (try? await git.generatedPaths(parsed.map(\.path), at: pullRequest.head.sha, in: repository)) ?? []
+        // them, just means nothing is treated as generated. The base tip
+        // counts too, for a rule added after the PR branched.
+        let generated = (try? await git.generatedPaths(
+            parsed.map(\.path), atAnyOf: [pullRequest.head.sha, baseTip], in: repository
+        )) ?? []
         let files = parsed.filter { !generated.contains($0.path) } + parsed.filter { generated.contains($0.path) }
         // Only worth computing when the base has moved past the branch point.
-        let merge = mergeBase == pullRequest.base.sha
+        let merge = try await git.mergeBase(baseTip, pullRequest.head.sha, in: repository) == baseTip
             ? nil
-            : try? await git.mergeTree(base: pullRequest.base.sha, head: pullRequest.head.sha, in: repository)
+            : try? await git.mergeTree(base: baseTip, head: pullRequest.head.sha, in: repository)
 
         return LoadedReview(
-            pullRequest: pullRequest, mergeBase: mergeBase, files: files, generatedPaths: generated, merge: merge,
-            repository: repository, git: git
+            pullRequest: pullRequest, mergeBase: mergeBase, baseTip: baseTip, files: files, generatedPaths: generated,
+            merge: merge, repository: repository, git: git
         )
     }
 }

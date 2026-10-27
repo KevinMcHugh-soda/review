@@ -1,4 +1,5 @@
 import ReviewCore
+import ReviewKit
 import SwiftUI
 
 /// A thread already on GitHub: where, its state, and what was said.
@@ -9,8 +10,16 @@ struct ThreadCard: View {
     private var isSelected: Bool { session.selectedThreadID == thread.id }
 
     var body: some View {
+        let isCollapsed = session.isCollapsed(thread)
         VStack(alignment: .leading, spacing: Theme.spacing) {
             HStack(spacing: Theme.tightSpacing) {
+                Button(isCollapsed ? "Expand" : "Collapse", systemImage: isCollapsed ? "chevron.right" : "chevron.down") {
+                    session.toggleCollapsed(thread)
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .frame(width: Theme.chevronWidth)
+                .help(isCollapsed ? "Show this thread" : "Hide this thread")
                 Button {
                     session.reveal(thread)
                 } label: {
@@ -30,15 +39,23 @@ struct ThreadCard: View {
                     .help("Open on GitHub")
                 }
             }
-            ForEach(thread.comments) { comment in
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(comment.author)
-                        .font(Theme.Fonts.meta.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    MarkdownText(markdown: comment.body)
+            if isCollapsed {
+                Text(MarkdownText.inline(preview))
+                    .font(Theme.Fonts.meta)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            } else {
+                ForEach(thread.comments) { comment in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(comment.author)
+                            .font(Theme.Fonts.meta.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                        MarkdownText(markdown: comment.body)
+                    }
                 }
+                replyArea
             }
-            replyArea
         }
         .padding(Theme.gutter)
         .background(.background.secondary, in: .rect(cornerRadius: Theme.cardCornerRadius))
@@ -47,6 +64,15 @@ struct ThreadCard: View {
                 .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 1.5)
         }
         .opacity(thread.isResolved ? 0.7 : 1)
+    }
+
+    /// "cursor: This jsonb_agg and GROUP BY run over… · 3 comments".
+    private var preview: String {
+        guard let first = thread.comments.first else { return "No comments" }
+        let text = GitHubMarkdown.removingHiddenComments(first.body)
+            .split(whereSeparator: \.isNewline).first.map(String.init) ?? ""
+        let more = thread.comments.count > 1 ? " · \(thread.comments.count) comments" : ""
+        return "\(first.author): \(text)\(more)"
     }
 
     /// A reply field, and Resolve beside it. Both act on GitHub at once, as

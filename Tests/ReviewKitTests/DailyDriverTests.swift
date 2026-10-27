@@ -59,4 +59,17 @@ struct DailyDriverTests {
         try store.save(references)
         #expect(store.load() == references)
     }
+
+    @Test("Remembers tracked repositories, dropping a name it cannot read")
+    func trackedRepositories() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("review-tr-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = TrackedRepositoriesStore(root: root)
+        #expect(store.load().isEmpty)
+        let repositories = [RepositoryName(owner: "sodahealth", name: "harmony"), RepositoryName(owner: "sodahealth", name: "nexus")]
+        try store.save(repositories)
+        #expect(store.load() == repositories)
+        try Data(#"["sodahealth/harmony", "not a repo"]"#.utf8).write(to: store.file)
+        #expect(store.load() == [repositories[0]])
+    }
 }

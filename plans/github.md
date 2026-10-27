@@ -12,7 +12,27 @@ pages results with `--paginate`. The app never sees a token.
 | Changed files (names and status only — diffs are computed locally, see checkout-and-diff.md) | `gh api --paginate repos/{o}/{r}/pulls/{n}/files` |
 | Existing review threads, with resolved/outdated state | `gh api graphql` — `pullRequest.reviewThreads`, since REST has no resolved flag |
 | The reviewer's pending review, if one exists | `gh api repos/{o}/{r}/pulls/{n}/reviews`, filtered to `state == PENDING` for the viewer |
-| Review-requested inbox (M6) | `gh search prs --review-requested=@me --state=open --json …` |
+| Title, status and author of every open PR, for the sidebar's groups | `gh api graphql` — one `repository(…) { pullRequest(…) { title state isDraft author { login } } }` alias per PR, fifty to a request |
+| The inbox: Waiting on You, Your Pull Requests | Three `gh search prs --state=open` runs in parallel — `--review-requested=@me`, `--assignee=@me`, `--author=@me` — each with one `--repo` per tracked repository (none means all of GitHub), merged by PR with every reason kept |
+
+## Tracked repositories and the inbox
+
+Settings (⌘,) › Repositories lists the repositories the inbox searches, saved
+to `tracked-repositories.json` beside `open-pull-requests.json`. Add with
+`owner/repo` or any GitHub URL in the repository; remove with − or Delete.
+With none tracked, the searches cover every repository — the old behaviour.
+
+`--repo` repeats and GitHub ORs the repositories while ANDing the other
+qualifiers, so each reason is one search however many repositories there are.
+`--review-requested` includes requests to a team the reviewer is on. A PR that
+turns up in two searches (assigned and asked to review) is one item with both
+reasons; a PR the reviewer wrote goes to Your Pull Requests whatever else it
+matched. PRs already open in the sidebar are left out of both sections — they
+are in their status group.
+
+The toolbar's Refresh (⌘R) runs the three searches and the open PRs' status
+query together. A refresh asked for while one is running (say, by tracking a
+repository) makes the running one go again when it ends.
 
 ## Posting — as built
 

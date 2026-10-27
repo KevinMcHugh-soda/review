@@ -86,11 +86,18 @@ Split and File modes.
 ### Generated files
 
 Files marked `linguist-generated` (set or `true`) in `.gitattributes` at the
-PR's head — GitHub's rule — go to the end of the file list and the scroll,
+PR's head — GitHub's rule — or at the base branch's current tip go to the end of the file list and the scroll,
 tagged "generated", collapsed until clicked. Found with
 `git check-attr --cached` against a throwaway index read from head's tree:
 the clone is bare, and Apple's git 2.39 predates `check-attr --source`.
 `-diff` and `binary` attributes are not treated as generated.
+
+The base tip counts because a PR cut before the base added a rule would
+otherwise miss it: harmony#13296 branched before `internal/*api/client.go`
+was marked generated, and showed 449 removed generated lines as hand-written.
+The tip is `refs/review/base/<branch>` from the fetch, not the API's
+`base.sha`, which GitHub moves only when the PR itself changes — for that PR
+it was still the merge base.
 
 ### Gaps between hunks
 
@@ -105,7 +112,7 @@ on them, caught by a test.
 ### Hover and the ⌘ underline
 
 Resting the pointer on a symbol for 0.6 s asks the language server for its
-hover and shows it in a popover, rendered as Markdown (code fences, rules).
+hover and shows it in a popover, rendered as Markdown by the shared `GitHubMarkdown.blocks` renderer (code fences, rules, lists, tables).
 Holding ⌘ underlines the symbol under the pointer and shows a pointing hand —
 what ⌘-click would jump to.
 
@@ -113,8 +120,10 @@ what ⌘-click would jump to.
 
 ⌘-click is Jump to Definition; the context menu and the Navigate menu offer
 the rest, with Xcode's shortcuts (⌃⌘J, ⌃⇧⌘J, ⌃⌘R, ⌃⌘I, ⌃⇧⌘H; back/forward
-⌃⌘← / ⌃⌘→). Results — references, implementations, callers — open in a
-resizable panel below the code. A jump into a changed file stays in Diff if
+⌃⌘← / ⌃⌘→). The context menu shows each item's shortcut, read from the same
+`KeyboardShortcut` the menu bar uses, so the two cannot drift. Results —
+references, implementations, callers — open in a resizable panel below the
+code. A jump into a changed file stays in Diff if
 the line is in a hunk and switches to the whole file if not; anywhere else
 opens as a plain file, labelled "Not changed in this PR" or "Outside the
 repository".
@@ -172,5 +181,12 @@ flipped. `.json`, `.jsonc`, `.json5`, `.yaml`, `.yml`.
 relative path, which SwiftPM does not evaluate from the package's directory,
 so the scanner is silently dropped and linking fails on
 `tree_sitter_yaml_external_scanner_*`.
+
+**SQL** from DerekStride's `tree-sitter-sql`, pinned to a commit on its
+`gh-pages` branch (e038788e): its release tags ship `scanner.c` without the
+generated `parser.c`, so a tag does not build. Its highlight query is written
+for Neovim, whose `#match?` takes Lua patterns, so `scripts/vendor-queries.swift`
+rewrites `%d` to `[0-9]` (stated in the generated file); without that, numbers
+colour as strings, which a test catches. `.sql`, `.psql`, `.pgsql`.
 
 LSP semantic tokens may be layered on top later, once a server is warm.

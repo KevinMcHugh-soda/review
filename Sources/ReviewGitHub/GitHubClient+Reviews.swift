@@ -147,15 +147,30 @@ private struct CreatedReview: Decodable {
 }
 
 extension GitHubClient {
-    /// Open pull requests where the viewer's review is requested, newest
-    /// activity first.
-    public func reviewRequests(limit: Int = 50) async throws -> [InboxItem] {
+    /// Open pull requests the viewer is asked to review, is assigned, or
+    /// wrote — one search each, merged — newest activity first. Limited to
+    /// `repositories` unless it is empty, which means all of GitHub.
+    /// Search cannot say which are approved, so a summary lookup does; if it
+    /// fails the inbox still comes back, with none marked approved.
+    public func inbox(in repositories: [RepositoryName], limit: Int = 100) async throws -> [InboxItem] {
+        let items = try await withThrowingTaskGroup(of: [InboxItem].self) { group in
+            for reason in InboxItem.Reason.allCases {
+                group.addTask { try await self.search(reason, in: repositories, limit: limit) }
+            }
+            return try await group.reduce(into: []) { $0 += $1 }.mergingReasons()
+        }
+        let summaries = (try? await summaries(of: items.map(\.reference))) ?? [:]
+        return items.map { item in
+            var item = item
+            item.isApproved = summaries[item.reference]?.isApproved ?? false
+            return item
+        }
+    }
+
+    private func search(_ reason: InboxItem.Reason, in repositories: [RepositoryName], limit: Int) async throws -> [InboxItem] {
         let output = try await Subprocess.run(
             gh,
-            [
-                "search", "prs", "--review-requested=@me", "--state=open", "--limit", String(limit),
-                "--json", "number,title,repository,author,updatedAt,isDraft",
-            ],
+            Self.searchArguments(reason, in: repositories, limit: limit),
             environment: environment,
             timeout: .seconds(60)
         )
@@ -163,13 +178,25 @@ extension GitHubClient {
             throw GitHubError.failed(status: output.status, message: output.stderrText.trimmingCharacters(in: .whitespacesAndNewlines))
         }
         do {
-            return try Self.decodeInbox(output.stdout)
+            return try Self.decodeInbox(output.stdout, reason: reason)
         } catch {
             throw GitHubError.unreadable("\(error)")
         }
     }
 
-    static func decodeInbox(_ data: Data) throws -> [InboxItem] {
+    /// `--repo` may repeat; GitHub ORs the repositories and ANDs the rest.
+    static func searchArguments(_ reason: InboxItem.Reason, in repositories: [RepositoryName], limit: Int) -> [String] {
+        let qualifier = switch reason {
+        case .reviewRequested: "--review-requested=@me"
+        case .assigned: "--assignee=@me"
+        case .authored: "--author=@me"
+        }
+        return ["search", "prs", qualifier, "--state=open", "--limit", String(limit)]
+            + repositories.flatMap { ["--repo", $0.description] }
+            + ["--json", "number,title,repository,author,updatedAt,isDraft"]
+    }
+
+    static func decodeInbox(_ data: Data, reason: InboxItem.Reason = .reviewRequested) throws -> [InboxItem] {
         struct Result: Decodable {
             struct Repository: Decodable { let nameWithOwner: String }
             struct Author: Decodable { let login: String }
@@ -189,7 +216,7 @@ extension GitHubClient {
                 }
                 return InboxItem(
                     reference: reference, title: result.title, author: result.author?.login ?? "ghost",
-                    isDraft: result.isDraft, updatedAt: result.updatedAt
+                    isDraft: result.isDraft, updatedAt: result.updatedAt, reasons: [reason]
                 )
             }
             .sorted { $0.updatedAt > $1.updatedAt }

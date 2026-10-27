@@ -15,6 +15,9 @@ struct Source {
     let constant: String
     /// The upstream repository, tag and path the file was copied from.
     let origin: String
+    /// Text substitutions applied while vendoring, each stated in the
+    /// generated file. Kept to what the upstream query needs to work here.
+    var rewrites: [(from: String, to: String, why: String)] = []
 }
 
 let sources = [
@@ -24,6 +27,14 @@ let sources = [
     Source(file: "typescript-highlights.scm", constant: "typeScriptHighlights", origin: "tree-sitter-typescript v0.23.2, queries/highlights.scm"),
     Source(file: "json-highlights.scm", constant: "jsonHighlights", origin: "tree-sitter-json v0.24.8, queries/highlights.scm"),
     Source(file: "yaml-highlights.scm", constant: "yamlHighlights", origin: "tree-sitter-yaml v0.7.0 (tree-sitter-grammars), queries/highlights.scm"),
+    Source(
+        file: "sql-highlights.scm", constant: "sqlHighlights",
+        origin: "tree-sitter-sql (DerekStride) gh-pages e038788e, queries/highlights.scm",
+        rewrites: [(
+            from: "%d", to: "[0-9]",
+            why: "the query is written for Neovim, whose #match? takes Lua patterns; here it is a regular expression"
+        )]
+    ),
 ]
 
 var output = """
@@ -37,10 +48,13 @@ enum VendoredQueries {
 """
 
 for source in sources {
-    let text = try String(contentsOfFile: "scripts/queries/\(source.file)", encoding: .utf8)
+    var text = try String(contentsOfFile: "scripts/queries/\(source.file)", encoding: .utf8)
+    for rewrite in source.rewrites {
+        text = text.replacingOccurrences(of: rewrite.from, with: rewrite.to)
+    }
     precondition(!text.contains("\"\"\"#"), "\(source.file) would end the raw string early")
     output += """
-        /// \(source.origin)
+        /// \(source.origin)\(source.rewrites.map { "\n    /// Rewritten: `\($0.from)` → `\($0.to)`, because \($0.why)." }.joined())
         static let \(source.constant) = #\"\"\"
     \(text.split(separator: "\n", omittingEmptySubsequences: false).map { $0.isEmpty ? "" : "    \($0)" }.joined(separator: "\n"))
         \"\"\"#

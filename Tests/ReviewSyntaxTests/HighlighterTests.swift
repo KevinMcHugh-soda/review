@@ -67,6 +67,30 @@ struct HighlighterTests {
         #expect(kinds["defaults"] == .constant)
     }
 
+    @Test("Colours SQL keywords, strings, numbers, comments, functions and tables")
+    func sql() {
+        let text = """
+            -- add the ledger table
+            CREATE TABLE ledger_entries (
+              id BIGINT PRIMARY KEY,
+              memo TEXT NOT NULL DEFAULT 'none'
+            );
+            SELECT count(*) FROM ledger_entries WHERE amount > 100 AND rate = 0.5;
+
+            """
+        let kinds = finalKinds(text, .sql)
+        #expect(kinds["-- add the ledger table"] == .comment)
+        #expect(kinds["CREATE"] == .keyword)
+        #expect(kinds["SELECT"] == .keyword)
+        #expect(kinds["'none'"] == .string)
+        // Numbers rely on the `%d` → `[0-9]` rewrite of the vendored query.
+        #expect(kinds["100"] == .number)
+        #expect(kinds["0.5"] == .number)
+        #expect(kinds["count"] == .function)
+        #expect(kinds["BIGINT"] == .type)
+        #expect(kinds["ledger_entries"] == .type)
+    }
+
     @Test("Parses JSX with the TSX grammar")
     func tsx() {
         let text = "export const A = () => <div className=\"x\">hi</div>\n"
@@ -109,6 +133,7 @@ struct HighlighterTests {
         #expect(SyntaxLanguage(path: "tsconfig.json") == .json)
         #expect(SyntaxLanguage(path: ".github/workflows/ci.yml") == .yaml)
         #expect(SyntaxLanguage(path: "deploy/values.yaml") == .yaml)
+        #expect(SyntaxLanguage(path: "migrations/0042_ledger.sql") == .sql)
         #expect(SyntaxLanguage(path: "README.md") == nil)
     }
 

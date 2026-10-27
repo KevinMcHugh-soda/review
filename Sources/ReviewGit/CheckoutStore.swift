@@ -70,13 +70,17 @@ public struct CheckoutStore: Sendable {
     /// Fetches name `origin`, never the URL: a partial clone applies its
     /// blob filter only when fetching from its promisor remote, so fetching by
     /// URL quietly downloads every blob in the new history.
+    /// Where `fetch` keeps the base branch's tip, which can be ahead of the
+    /// API's `base.sha`: GitHub updates that only when the PR itself changes.
+    public static func baseRef(_ branch: String) -> String { "refs/review/base/\(branch)" }
+
     public func fetch(_ pullRequest: PullRequest, into repository: URL) async throws {
         let number = pullRequest.reference.number
         try await git.run(
             [
                 "fetch", "--quiet", "--no-tags", "--force", "origin",
                 "refs/pull/\(number)/head:refs/review/pull/\(number)/head",
-                "refs/heads/\(pullRequest.base.name):refs/review/base/\(pullRequest.base.name)",
+                "refs/heads/\(pullRequest.base.name):\(Self.baseRef(pullRequest.base.name))",
             ],
             in: repository
         )

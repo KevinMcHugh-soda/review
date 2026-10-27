@@ -25,7 +25,8 @@ target is noise.
 ReviewCore       PullRequestReference, PullRequest, Side, CodeLocation,
                  DraftComment/CommentAnchor/ReviewNotes, ReviewThread,
                  ReviewEvent. No I/O.
-ReviewProcess    Subprocess, ToolEnvironment. The only target that spawns.
+ReviewProcess    Subprocess, ToolEnvironment, FileHandle.chunks (the one pipe reader).
+                 The only target that spawns.
   ReviewDiff     FileDiff/Hunk/DiffLine and UnifiedDiffParser.             ✅ M2
   ReviewGit      GitClient (pinned diff options), CheckoutStore clones.    ✅ M2
   ReviewGitHub   gh api: PR metadata, review threads (GraphQL), posting.  ✅ M2, M5

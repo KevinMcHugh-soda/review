@@ -72,7 +72,8 @@ Dependencies: [swift-argument-parser](https://github.com/apple/swift-argument-pa
 [SwiftTreeSitter](https://github.com/ChimeHQ/SwiftTreeSitter),
 [tree-sitter-go](https://github.com/tree-sitter/tree-sitter-go),
 [tree-sitter-typescript](https://github.com/tree-sitter/tree-sitter-typescript),
-[tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json) and
-[tree-sitter-yaml](https://github.com/tree-sitter-grammars/tree-sitter-yaml).
+[tree-sitter-json](https://github.com/tree-sitter/tree-sitter-json),
+[tree-sitter-yaml](https://github.com/tree-sitter-grammars/tree-sitter-yaml) and
+[tree-sitter-sql](https://github.com/DerekStride/tree-sitter-sql).
 The highlight queries are vendored from the grammar repositories (and
 tree-sitter-javascript); their MIT licences are in `ThirdPartyLicenses/`.

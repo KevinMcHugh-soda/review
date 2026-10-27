@@ -5,58 +5,60 @@ import SwiftUI
 /// the code.
 struct RootView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.openSettings) private var openSettings
+    @State private var columnVisibility = NavigationSplitViewVisibility.automatic
 
     var body: some View {
         @Bindable var model = model
 
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $model.selection) {
-                if !model.pullRequests.isEmpty {
-                    Section("Open") {
-                        ForEach(model.pullRequests, id: \.self) { reference in
-                            PullRequestRow(reference: reference, session: model.session(for: reference))
-                                .tag(reference)
-                                .contextMenu {
-                                    Link("Open on GitHub", destination: reference.webURL)
-                                    Divider()
-                                    Button("Close") { model.close(reference) }
-                                }
+                ForEach(shownStatuses, id: \.self) { status in
+                    let group = model.pullRequests(with: status)
+                    Section {
+                        ForEach(group, id: \.self) { reference in
+                            PullRequestRow(
+                                reference: reference,
+                                session: model.session(for: reference),
+                                summary: model.summaries[reference]
+                            )
+                            .tag(reference)
+                            .contextMenu { rowMenu(reference, in: group) }
                         }
+                        // Drag to reorder within the group; the order is
+                        // saved and survives a relaunch.
+                        .onMove { model.moveOpenPullRequests(in: status, fromOffsets: $0, toOffset: $1) }
+                    } header: {
+                        GroupHeader(status: status, count: group.count)
                     }
                 }
-                Section {
-                    ForEach(model.unopenedInbox) { item in
-                        InboxRow(item: item)
-                            .tag(item.reference)
-                            .contextMenu {
-                                Link("Open on GitHub", destination: item.reference.webURL)
-                            }
-                    }
+                InboxSection(title: "Waiting on You", items: model.waitingInbox) {
                     if let error = model.inboxError {
-                        Text(error)
-                            .font(Theme.Fonts.meta)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(3)
-                    } else if model.unopenedInbox.isEmpty, !model.isLoadingInbox {
-                        Text("Nothing waiting on you.")
-                            .font(Theme.Fonts.meta)
-                            .foregroundStyle(.secondary)
-                    }
-                } header: {
-                    HStack {
-                        Text("Review Requested")
-                        Spacer()
-                        if model.isLoadingInbox {
-                            ProgressView().controlSize(.mini)
-                        } else {
-                            Button("Refresh", systemImage: "arrow.clockwise") {
-                                Task { await model.refreshInbox() }
-                            }
-                            .labelStyle(.iconOnly)
-                            .buttonStyle(.borderless)
-                            .help("Refresh review requests (⌘R)")
+                        Text(error).lineLimit(3)
+                    } else if model.trackedRepositories.isEmpty {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Nothing waiting on you in any repository.")
+                            SettingsLink { Text("Choose Repositories…") }
+                                .buttonStyle(.link)
                         }
+                    } else {
+                        Text("Nothing waiting on you in ^[\(model.trackedRepositories.count) repository](inflect: true).")
                     }
+                }
+                InboxSection(title: "Your Pull Requests", items: model.authoredInbox) {
+                    if model.inboxError == nil {
+                        Text("No open pull requests of yours.")
+                    }
+                }
+            }
+            // A group appearing or emptying makes a new list. Inserting or
+            // removing a collapsible section in place leaves AppKit's outline
+            // view holding the freed section, and its next tracking-area pass
+            // crashes (EXC_BAD_ACCESS in -[NSOutlineView rowForItem:]).
+            .id(shownStatuses)
+            .toolbar {
+                ToolbarItem {
+                    RefreshButton()
                 }
             }
             .onChange(of: model.selection) { _, reference in model.didSelect(reference) }
@@ -102,7 +104,32 @@ struct RootView: View {
         .navigationSubtitle(subtitle)
         .focusedSceneValue(\.reviewSession, model.selectedSession)
         .onOpenURL { model.handle($0) }
+        .task {
+            let options = LaunchOptions.current
+            if options.showsSidebar { columnVisibility = .all }
+            if options.opensSettings { openSettings() }
+        }
 
+    }
+
+    @ViewBuilder
+    private func rowMenu(_ reference: PullRequestReference, in group: [PullRequestReference]) -> some View {
+        Link("Open on GitHub", destination: reference.webURL)
+        Divider()
+        // The keyboard and menu way to do what a drag does.
+        Button("Move to Top") { model.moveOpenPullRequestToTop(reference) }
+            .disabled(group.first == reference)
+        Button("Move Up") { model.moveOpenPullRequest(reference, by: -1) }
+            .disabled(group.first == reference)
+        Button("Move Down") { model.moveOpenPullRequest(reference, by: 1) }
+            .disabled(group.last == reference)
+        Divider()
+        Button("Close") { model.close(reference) }
+    }
+
+    /// The status groups with a PR in them; empty ones are not shown.
+    private var shownStatuses: [PullRequestStatus] {
+        PullRequestStatus.allCases.filter { !model.pullRequests(with: $0).isEmpty }
     }
 
     private var title: String {
@@ -112,6 +139,6 @@ struct RootView: View {
 
     private var subtitle: String {
         guard let session = model.selectedSession, let pullRequest = session.review?.pullRequest else { return "" }
-        return "\(session.reference) · \(pullRequest.author) · \(pullRequest.head.name) → \(pullRequest.base.name)"
+        return "\(pullRequest.status.title) · \(session.reference) · \(pullRequest.author) · \(pullRequest.head.name) → \(pullRequest.base.name)"
     }
 }

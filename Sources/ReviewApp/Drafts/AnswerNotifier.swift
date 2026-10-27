@@ -37,8 +37,15 @@ enum AnswerNotifier {
         content.threadIdentifier = pullRequest.description
         content.userInfo = [pullRequestKey: pullRequest.description, draftKey: draft?.uuidString ?? ""]
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error { NSLog("Review: notification not shown: \(error)") }
+        // The async form, not the completion handler: a closure written here
+        // inherits @MainActor, UserNotifications calls it on its own queue,
+        // and Swift's isolation check traps.
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
+            } catch {
+                NSLog("Review: notification not shown: \(error)")
+            }
         }
     }
 

@@ -1,4 +1,5 @@
 import ReviewCore
+import ReviewKit
 import SwiftUI
 
 /// The trailing inspector: every draft on this PR, and the conversation about
@@ -11,11 +12,21 @@ struct DraftsInspector: View {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: Theme.spacing) {
+                    if let pullRequest = session.review?.pullRequest {
+                        DisclosureGroup(isExpanded: $session.isDescriptionExpanded) {
+                            DescriptionText(markdown: pullRequest.body)
+                                .padding(.top, Theme.tightSpacing)
+                        } label: {
+                            Text("Description")
+                                .font(Theme.Fonts.panelTitle)
+                        }
+                        .padding(.bottom, Theme.spacing)
+                    }
                     if session.unpostedDrafts.isEmpty {
                         ContentUnavailableView(
                             "No Drafts",
                             systemImage: "text.bubble",
-                            description: Text("Select lines and choose Add Comment (⌘⇧M). Drafts stay private until you post them.")
+                            description: Text("Select lines and click + in the gutter, or press ⌘⇧M. Drafts stay private until you post them.")
                         )
                         .padding(.top, Theme.readingTopInset)
                     } else {
@@ -59,9 +70,18 @@ struct DraftsInspector: View {
             }
             .onChange(of: session.selectedDraftID) { _, id in
                 guard let id else { return }
-                withAnimation { proxy.scrollTo(id, anchor: .top) }
-                // A new, empty draft wants typing straight away.
-                if session.draft(id)?.body.isEmpty == true { focusedDraft = id }
+                focusDraft(id, proxy: proxy)
+            }
+            .onAppear {
+                guard let id = session.selectedDraftID else { return }
+                focusDraft(id, proxy: proxy)
+            }
+            .onChange(of: session.isInspectorShown) { _, shown in
+                // Opening the inspector for a draft just created: the draft
+                // was selected before this view existed, so the change above
+                // never fired.
+                guard shown, let id = session.selectedDraftID else { return }
+                focusDraft(id, proxy: proxy)
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -74,6 +94,13 @@ struct DraftsInspector: View {
                     .background(.bar)
             }
         }
+    }
+
+    /// Scrolls a new draft into view and, when it is still empty, puts the
+    /// cursor in the note.
+    private func focusDraft(_ id: UUID, proxy: ScrollViewProxy) {
+        withAnimation { proxy.scrollTo(id, anchor: .top) }
+        if session.draft(id)?.body.isEmpty == true { focusedDraft = id }
     }
 }
 
@@ -112,6 +139,22 @@ private struct OverviewSection: View {
                 .padding(Theme.gutter)
                 .background(.background.secondary, in: .rect(cornerRadius: Theme.cardCornerRadius))
             }
+        }
+    }
+}
+
+/// The PR's description, or a note that there is none — templates' hidden
+/// prompts alone count as none.
+private struct DescriptionText: View {
+    let markdown: String
+
+    var body: some View {
+        if GitHubMarkdown.removingHiddenComments(markdown).isEmpty {
+            Text("No description.")
+                .font(Theme.Fonts.meta)
+                .foregroundStyle(.secondary)
+        } else {
+            MarkdownText(markdown: markdown)
         }
     }
 }

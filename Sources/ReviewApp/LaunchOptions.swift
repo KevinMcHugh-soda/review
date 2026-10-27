@@ -13,6 +13,9 @@ import ReviewKit
 ///   UTF-16 column once the servers are ready.
 /// - `--comment <start>[-<end>] --note <text> [--ask]` adds a draft on those
 ///   head-side lines, and with `--ask` asks Claude and waits for the answer.
+/// - `--inspector on` shows the drafts inspector: the description and threads.
+/// - `--sidebar on` shows the sidebar, whatever the last launch left.
+/// - `--settings on` opens Settings; a snapshot writes it as `-settings.png`.
 /// - `--post-sheet` opens the Post Review sheet (it only plans; nothing is
 ///   sent without pressing Post).
 /// - `--hover <line>:<column>` shows the hover for the symbol at a head-side
@@ -37,6 +40,9 @@ struct LaunchOptions {
     let navigation: (action: NavigationAction, line: Int, column: Int)?
     let comment: (lines: ClosedRange<Int>, note: String, ask: Bool)?
     let opensPostSheet: Bool
+    let showsInspector: Bool
+    let showsSidebar: Bool
+    let opensSettings: Bool
     let hover: (line: Int, column: Int)?
     let snapshotPath: String?
 
@@ -70,6 +76,9 @@ struct LaunchOptions {
             comment = nil
         }
         opensPostSheet = arguments.contains("--post-sheet")
+        showsInspector = value(after: "--inspector") == "on"
+        showsSidebar = value(after: "--sidebar") == "on"
+        opensSettings = value(after: "--settings") == "on"
         let hoverParts = value(after: "--hover")?.split(separator: ":").compactMap { Int($0) } ?? []
         hover = hoverParts.count == 2 ? (hoverParts[0], hoverParts[1]) : nil
         snapshotPath = environment["REVIEW_SNAPSHOT"]
@@ -79,7 +88,12 @@ struct LaunchOptions {
     /// sheet — a separate window — beside it as `<name>-sheet.png`.
     @MainActor
     static func writeSnapshot(to path: String) {
-        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil }) else { return }
+        let base = (path as NSString).deletingPathExtension
+        let isSettings = { (window: NSWindow) in window.identifier?.rawValue.contains("Settings") == true }
+        if let settings = NSApp.windows.first(where: { $0.isVisible && isSettings($0) }) {
+            write(settings, to: base + "-settings.png")
+        }
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.sheetParent == nil && !isSettings($0) }) else { return }
         write(window, to: path)
         if let sheet = window.attachedSheet {
             write(sheet, to: (path as NSString).deletingPathExtension + "-sheet.png")
