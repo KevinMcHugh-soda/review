@@ -134,7 +134,8 @@ navigation logic has no unit tests — it was exercised through the app.
 
 ## Milestone 4 — draft and ask ✅
 
-Select lines, Add Comment (⌘⇧M or the context menu), write what you think;
+Select lines (or just place the cursor), Add Comment (⌘⇧M or the context menu,
+which shows each item's shortcut as the menu bar does), write what you think;
 ask Claude about it (⌘↩) or about every draft at once (⌥⌘↩), and follow up.
 Drafts live in a trailing inspector (⌥⌘0), are marked in the gutter, and are
 saved per PR.

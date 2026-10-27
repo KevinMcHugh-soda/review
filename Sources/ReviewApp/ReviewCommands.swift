@@ -59,7 +59,7 @@ struct ReviewCommands: Commands {
             .disabled(session?.selectedFile == nil)
             Divider()
             Button("Add Comment") { session?.addDraft() }
-                .keyboardShortcut("m", modifiers: [.command, .shift])
+                .keyboardShortcut(.addComment)
                 .disabled(session?.document == nil)
             Button("Ask Claude About This Draft") {
                 guard let session, let id = session.selectedDraftID else { return }
