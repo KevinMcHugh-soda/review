@@ -58,7 +58,7 @@ public struct LoadedReview: Sendable {
     /// text comes from the merge tree and the marks from diffing the base tip
     /// against it — what the merge adds, in the merged file's numbering.
     public func document(
-        for file: FileDiff, mode: CodeDocument.Mode, expandedGaps: Set<Int> = []
+        for file: FileDiff, mode: CodeDocument.Mode, revealed: IndexSet = []
     ) async throws -> CodeDocument {
         guard !file.isBinary else { return CodeDocument(file: file, oldText: nil, newText: nil, mode: mode) }
         async let old = text(of: file, on: .base)
@@ -80,14 +80,14 @@ public struct LoadedReview: Sendable {
 
         // Off the caller's actor: parsing a large file takes a moment.
         return await Task.detached(priority: .userInitiated) {
-            CodeDocument(file: file, oldText: oldText, newText: newText, mode: mode, expandedGaps: expandedGaps)
+            CodeDocument(file: file, oldText: oldText, newText: newText, mode: mode, revealed: revealed)
         }.value
     }
 
     /// Every file in one document, under a header each — the continuous view.
     ///
     /// - Parameters:
-    ///   - expandedGaps: by file path.
+    ///   - revealed: head lines shown out of the gaps, by file path.
     ///   - collapsed: paths shown as their header only — viewed and generated
     ///     files, as on GitHub, unless the reviewer opened one again.
     ///   - viewed: paths marked viewed, for their headers.
@@ -95,7 +95,7 @@ public struct LoadedReview: Sendable {
     /// two `git cat-file`s, and a large PR has hundreds.
     public func allFilesDocument(
         mode: CodeDocument.Mode,
-        expandedGaps: [String: Set<Int>] = [:],
+        revealed: [String: IndexSet] = [:],
         collapsed: Set<String> = [],
         viewed: Set<String> = []
     ) async throws -> CodeDocument {
@@ -109,7 +109,7 @@ public struct LoadedReview: Sendable {
                 next += 1
                 group.addTask {
                     guard !file.isBinary, !collapsed.contains(file.path) else { return (index, nil) }
-                    return (index, try await document(for: file, mode: mode == .file ? .file : mode, expandedGaps: expandedGaps[file.path] ?? []))
+                    return (index, try await document(for: file, mode: mode == .file ? .file : mode, revealed: revealed[file.path] ?? []))
                 }
             }
             for _ in 0..<min(8, files.count) { addNext() }

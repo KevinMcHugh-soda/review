@@ -60,7 +60,7 @@ not exist here, so never reach for it. `swift build` compiles; `build.sh` bundle
   a value without a flag as a file to open, and a launch that opens a file creates no window.
   Options: `--navigate definition|references|callers|… --line <head line> --column <utf-16 column>`,
   `--comment 70-75 --note "…" --ask` (asks Claude; costs a few cents), `--hover <line>:<column>`,
-  `--expand <gap>`, `--post-sheet`, `--continuous on|off`. See `LaunchOptions.swift`.
+  `--reveal <a>-<b>`, `--expand <label text>`, `--post-sheet`, `--continuous on|off`. See `LaunchOptions.swift`.
 * `review post <pr> --dry-run` prints where every saved draft lands and the exact request.
   **Never run `review post … --yes`, or press Post in a scripted app run, on someone else's PR** —
   it is public and cannot be unsent. `--post-sheet` opens the sheet without posting.

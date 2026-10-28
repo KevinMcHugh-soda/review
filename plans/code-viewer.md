@@ -103,10 +103,33 @@ it was still the merge base.
 
 The unchanged runs a diff leaves out show as one row, "⋯ 67 unchanged
 lines" — before the first hunk, between hunks, and after the last. Clicking
-one expands it into numbered context lines (both sides' numbers, and
-navigable). Expansion is per file and per session; re-showing the same file
-and mode keeps the scroll position, so the code above an expanded gap does
-not move. Added and deleted files have no gaps — and the first version crashed
+the row shows all of it as numbered context lines (both sides' numbers, and
+navigable). After the count, link-coloured labels show part of it:
+
+- **↓ 5 lines / ↑ 5 lines** — continue the code above the gap downwards, or
+  the code below it upwards. Only the ends that have code beside them, and
+  neither when the run is five lines or fewer.
+- **↑ rest of func run / ↓ rest of … / ↕ rest of …** — the remainder of the
+  smallest *scope* that holds the line next to the gap and reaches into it.
+  A hunk in the middle of a function gets its signature; one inside a
+  multi-line raw string or template literal (usually embedded SQL) gets the
+  whole query first, then the function on the next click. ↕ when one scope
+  holds the code on both sides.
+
+Scopes come from tree-sitter, not the language servers: the file is already
+parsed for highlighting (`Highlighter.analyze` returns spans and scopes from
+one parse), it works before gopls is warm, and it covers SQL, JSON and YAML,
+which have no server here. The queries are our own, in `ScopeQueries`:
+Go functions, methods, types, closures and raw strings; TypeScript
+functions, named arrow functions, methods, classes, interfaces, type aliases,
+enums and template strings; SQL statements; JSON and YAML keys holding an
+object or block. LSP `documentSymbol` would only add the first two languages.
+
+The session keeps the *head lines* shown, per file (`revealedLines`), not
+which gaps are open; a gap renders as its shown lines plus one collapsed row
+per run still hidden, each with its own labels. Re-showing the same file and
+mode keeps the scroll position, so the code above an expanded gap does not
+move. Added and deleted files have no gaps — and the first version crashed
 on them, caught by a test.
 
 ### Hover and the ⌘ underline

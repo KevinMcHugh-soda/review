@@ -1,3 +1,4 @@
+import Foundation
 import ReviewDiff
 import ReviewSyntax
 
@@ -13,8 +14,8 @@ public struct CodeDocument: Sendable {
             case context
             case added
             case removed
-            /// Unchanged lines the diff left out, collapsed into one row that
-            /// expands when clicked.
+            /// Unchanged lines the diff left out, collapsed into one row. A
+            /// click shows them all; its `expansions` show some.
             case gap
             /// The empty side of a split row: an added line has nothing on the
             /// left, a removed one nothing on the right.
@@ -29,11 +30,11 @@ public struct CodeDocument: Sendable {
         public let oldLine: Int?
         public let newLine: Int?
         public let spans: [HighlightSpan]
-        /// For a `.gap` row, which gap it is: 0 before the first hunk, `n`
-        /// after the last of `n` hunks.
-        public let gap: Int?
         /// For a `.gap` row, the head lines it stands for.
         public let gapLines: ClosedRange<Int>?
+        /// For a `.gap` row, the ways to show part of it, labelled in its
+        /// text after the line count.
+        public let expansions: [Expansion]
         /// Which of the PR's files the row belongs to, by index into
         /// `LoadedReview.files`. Set in the all-files document; nil in a
         /// single file's, where every row is the selected file's.
@@ -41,22 +42,22 @@ public struct CodeDocument: Sendable {
 
         init(
             kind: Kind, text: String, oldLine: Int?, newLine: Int?, spans: [HighlightSpan],
-            gap: Int? = nil, gapLines: ClosedRange<Int>? = nil, file: Int? = nil
+            gapLines: ClosedRange<Int>? = nil, expansions: [Expansion] = [], file: Int? = nil
         ) {
             self.kind = kind
             self.text = text
             self.oldLine = oldLine
             self.newLine = newLine
             self.spans = spans
-            self.gap = gap
             self.gapLines = gapLines
+            self.expansions = expansions
             self.file = file
         }
 
         /// The same row, as part of file `index` in the all-files document.
         func inFile(_ index: Int) -> Row {
             Row(kind: kind, text: text, oldLine: oldLine, newLine: newLine, spans: spans,
-                gap: gap, gapLines: gapLines, file: index)
+                gapLines: gapLines, expansions: expansions, file: index)
         }
 
         /// A row that stands for code: not a header, gap or filler.
@@ -66,7 +67,27 @@ public struct CodeDocument: Sendable {
             case .hunkHeader, .gap, .filler, .fileHeader: false
             }
         }
+
+        /// The expansion whose label covers a UTF-16 column of the row.
+        public func expansion(atColumn column: Int) -> Expansion? {
+            expansions.first { $0.columns.contains(column) }
+        }
     }
+
+    /// Part of a gap that can be shown on its own: five lines at either end,
+    /// or the rest of the function (or type, or statement) a neighbouring
+    /// hunk sits in.
+    public struct Expansion: Sendable, Hashable {
+        /// "↑ 5 lines", "↓ rest of func run".
+        public let label: String
+        /// The head lines it shows, all inside the gap.
+        public let lines: ClosedRange<Int>
+        /// Where the label sits in the gap row's text, in UTF-16 units.
+        public let columns: Range<Int>
+    }
+
+    /// How many lines an arrow at either end of a gap shows.
+    public static let expansionStep = 5
 
     public enum Mode: String, Sendable, Hashable, CaseIterable {
         /// Hunks only, removed and added lines interleaved. The default.
@@ -120,8 +141,9 @@ public struct CodeDocument: Sendable {
     /// - Parameters:
     ///   - oldText: the file at the merge base; nil if it did not exist.
     ///   - newText: the file at head; nil if it was deleted.
-    ///   - expandedGaps: which gaps between hunks to show in full.
-    public init(file: FileDiff, oldText: String?, newText: String?, mode: Mode, expandedGaps: Set<Int> = []) {
+    ///   - revealed: head lines to show even though the diff leaves them
+    ///     out; the rest of each gap stays collapsed.
+    public init(file: FileDiff, oldText: String?, newText: String?, mode: Mode, revealed: IndexSet = []) {
         isBinary = file.isBinary
         guard !file.isBinary else {
             rows = []
@@ -134,15 +156,14 @@ public struct CodeDocument: Sendable {
         let old = oldText.map { HighlightedLines.highlighting($0, as: language) }
         let new = newText.map { HighlightedLines.highlighting($0, as: language) }
 
-        let newLineCount = newText.map { Self.lines(of: $0).count } ?? 0
         let newLines = newText.map(Self.lines) ?? []
         switch mode {
         case .diff:
-            rows = Self.diffRows(file, old: old, new: new, newLines: newLines, newLineCount: newLineCount, expanded: expandedGaps)
+            rows = Self.diffRows(file, old: old, new: new, newLines: newLines, revealed: revealed)
             leftRows = nil
         case .split:
             let split = Self.splitRows(
-                file, old: old, new: new, newLines: newLines, newLineCount: newLineCount, expanded: expandedGaps
+                file, old: old, new: new, newLines: newLines, revealed: revealed
             )
             rows = split.right
             leftRows = split.left
@@ -217,20 +238,20 @@ public struct CodeDocument: Sendable {
 
     static func diffRows(
         _ file: FileDiff, old: HighlightedLines?, new: HighlightedLines?,
-        newLines: [String], newLineCount: Int, expanded: Set<Int>
+        newLines: [String], revealed: IndexSet
     ) -> [Row] {
-        let gaps = Self.gaps(in: file, newLineCount: newLineCount)
+        let gaps = Self.gaps(in: file, newLineCount: newLines.count)
         var rows: [Row] = []
         for (index, hunk) in file.hunks.enumerated() {
             // Added and deleted files have no gaps at all.
             if gaps.indices.contains(index) {
-                rows += gapRows(gaps[index], file: file, new: new, newLines: newLines, expanded: expanded)
+                rows += gapRows(gaps[index], file: file, new: new, newLines: newLines, revealed: revealed)
             }
             rows.append(Row(kind: .hunkHeader, text: hunk.header, oldLine: nil, newLine: nil, spans: []))
             rows += hunk.lines.map { row(for: $0, old: old, new: new) }
         }
         if let trailing = gaps.last, gaps.count > file.hunks.count {
-            rows += gapRows(trailing, file: file, new: new, newLines: newLines, expanded: expanded)
+            rows += gapRows(trailing, file: file, new: new, newLines: newLines, revealed: revealed)
         }
         return rows
     }
@@ -273,26 +294,87 @@ public struct CodeDocument: Sendable {
         return gaps
     }
 
-    /// One collapsed row, or — expanded — every line in the gap as context.
+    /// The gap's revealed lines as context, and each run still hidden as one
+    /// collapsed row.
     private static func gapRows(
-        _ gap: Gap, file: FileDiff, new: HighlightedLines?, newLines: [String], expanded: Set<Int>
+        _ gap: Gap, file: FileDiff, new: HighlightedLines?, newLines: [String], revealed: IndexSet
     ) -> [Row] {
         guard let lines = gap.lines else { return [] }
-        guard expanded.contains(gap.index) else {
-            let count = lines.count
-            return [Row(
-                kind: .gap, text: "⋯ \(count) unchanged \(count == 1 ? "line" : "lines")",
-                oldLine: nil, newLine: nil, spans: [], gap: gap.index, gapLines: lines
-            )]
+        var rows: [Row] = []
+        var hiddenStart: Int?
+        func closeHidden(before number: Int) {
+            guard let start = hiddenStart else { return }
+            rows.append(collapsedRow(start...(number - 1), lineCount: newLines.count, scopes: new?.scopes ?? []))
+            hiddenStart = nil
         }
-        return lines.compactMap { number in
-            guard newLines.indices.contains(number - 1) else { return nil }
-            return Row(
+        for number in lines {
+            guard revealed.contains(number) else {
+                if hiddenStart == nil { hiddenStart = number }
+                continue
+            }
+            closeHidden(before: number)
+            guard newLines.indices.contains(number - 1) else { continue }
+            rows.append(Row(
                 kind: .context, text: newLines[number - 1],
                 oldLine: oldLine(forUnchanged: number, in: file.hunks), newLine: number,
                 spans: new?.spans(onLine: number) ?? []
-            )
+            ))
         }
+        closeHidden(before: lines.upperBound + 1)
+        return rows
+    }
+
+    /// One row standing for a hidden run: "⋯ 67 unchanged lines", then a
+    /// label for each expansion it offers.
+    private static func collapsedRow(_ run: ClosedRange<Int>, lineCount: Int, scopes: [SyntaxScope]) -> Row {
+        var text = "⋯ \(run.count) unchanged \(run.count == 1 ? "line" : "lines")"
+        let expansions = expansions(of: run, lineCount: lineCount, scopes: scopes).map { label, lines in
+            text += "    "
+            let start = (text as NSString).length
+            text += label
+            return Expansion(label: label, lines: lines, columns: start..<(text as NSString).length)
+        }
+        return Row(kind: .gap, text: text, oldLine: nil, newLine: nil, spans: [], gapLines: run, expansions: expansions)
+    }
+
+    /// What a hidden run offers besides showing all of it.
+    ///
+    /// - ↓ continues the code above it down by `expansionStep` lines, ↑ the
+    ///   code below it up; neither when that would be the whole run.
+    /// - "rest of" shows the remainder of the smallest scope that holds the
+    ///   line just above (↓) or just below (↑) the run and reaches into it —
+    ///   so a hunk in the middle of a function gets its signature, and one
+    ///   inside an embedded query gets the whole query. When one scope holds
+    ///   both, there is one ↕ for it.
+    static func expansions(
+        of run: ClosedRange<Int>, lineCount: Int, scopes: [SyntaxScope]
+    ) -> [(label: String, lines: ClosedRange<Int>)] {
+        let step = expansionStep
+        let above = run.lowerBound > 1 ? run.lowerBound - 1 : nil
+        let below = run.upperBound < lineCount ? run.upperBound + 1 : nil
+        var result: [(label: String, lines: ClosedRange<Int>)] = []
+        if above != nil, run.count > step {
+            result.append(("↓ \(step) lines", run.lowerBound...(run.lowerBound + step - 1)))
+        }
+        if below != nil, run.count > step {
+            result.append(("↑ \(step) lines", (run.upperBound - step + 1)...run.upperBound))
+        }
+
+        func scope(holding line: Int?) -> SyntaxScope? {
+            guard let line else { return nil }
+            return scopes
+                .filter { $0.lines.contains(line) && $0.lines.overlaps(run) }
+                .min { $0.lines.count < $1.lines.count }
+        }
+        let upper = scope(holding: above)
+        let lower = scope(holding: below)
+        if let upper, upper == lower {
+            result.append(("↕ rest of \(upper.label)", upper.lines.clamped(to: run)))
+        } else {
+            if let upper { result.append(("↓ rest of \(upper.label)", upper.lines.clamped(to: run))) }
+            if let lower { result.append(("↑ rest of \(lower.label)", lower.lines.clamped(to: run))) }
+        }
+        return result
     }
 
     /// The diff side by side. Within a hunk, a run of removed lines and the run
@@ -300,14 +382,14 @@ public struct CodeDocument: Sendable {
     /// with filler, so a line and its replacement sit level.
     static func splitRows(
         _ file: FileDiff, old: HighlightedLines?, new: HighlightedLines?,
-        newLines: [String], newLineCount: Int, expanded: Set<Int>
+        newLines: [String], revealed: IndexSet
     ) -> (left: [Row], right: [Row]) {
         let filler = Row(kind: .filler, text: "", oldLine: nil, newLine: nil, spans: [])
         var left: [Row] = []
         var right: [Row] = []
 
         func appendGap(_ gap: Gap) {
-            for row in gapRows(gap, file: file, new: new, newLines: newLines, expanded: expanded) {
+            for row in gapRows(gap, file: file, new: new, newLines: newLines, revealed: revealed) {
                 if row.kind == .gap {
                     left.append(row)
                     right.append(row)
@@ -318,7 +400,7 @@ public struct CodeDocument: Sendable {
             }
         }
 
-        let gaps = Self.gaps(in: file, newLineCount: newLineCount)
+        let gaps = Self.gaps(in: file, newLineCount: newLines.count)
         for (index, hunk) in file.hunks.enumerated() {
             if gaps.indices.contains(index) { appendGap(gaps[index]) }
             let header = Row(kind: .hunkHeader, text: hunk.header, oldLine: nil, newLine: nil, spans: [])

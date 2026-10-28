@@ -65,8 +65,9 @@ final class ReviewSession {
     /// Set while the file list is following the scroll, so that selecting the
     /// file being read does not scroll to it.
     var isFollowingScroll = false
-    /// Gaps between hunks the reviewer has opened up, by file.
-    var expandedGaps: [String: Set<Int>] = [:]
+    /// Head lines the reviewer has shown out of the gaps between hunks, by
+    /// file.
+    var revealedLines: [String: IndexSet] = [:]
 
     // Navigation state; see ReviewSession+Navigation.swift.
     var navigationState: NavigationState = .preparing
@@ -145,11 +146,16 @@ final class ReviewSession {
         if let externalFile { return "external:\(externalFile.path)" }
         guard let scrollKey else { return nil }
         if isContinuous {
-            let gaps = expandedGaps.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value.sorted())" }.joined(separator: ";")
+            let gaps = revealedLines.sorted { $0.key < $1.key }.map { "\($0.key)=\(Self.key(for: $0.value))" }
+                .joined(separator: ";")
             return "\(scrollKey):\(gaps):\(collapsedPaths.sorted().joined(separator: ","))"
         }
-        let gaps = mode == .file ? "" : (expandedGaps[selectedFilePath ?? ""] ?? []).sorted().map(String.init).joined(separator: ",")
+        let gaps = mode == .file ? "" : Self.key(for: revealedLines[selectedFilePath ?? ""] ?? [])
         return "\(scrollKey):\(gaps)"
+    }
+
+    private static func key(for lines: IndexSet) -> String {
+        lines.rangeView.map { "\($0.lowerBound)-\($0.upperBound - 1)" }.joined(separator: ",")
     }
 
     /// Shown as their header only in the all-files view: viewed and generated
@@ -185,11 +191,34 @@ final class ReviewSession {
         return files.firstIndex { $0.path == selectedFilePath }
     }
 
-    func expandGap(atRow row: Int) {
-        guard let document, document.rows.indices.contains(row), let gap = document.rows[row].gap,
+    /// Shows head lines out of a gap: all of the gap at `row`, or with
+    /// `lines`, just those — one of the row's expansions.
+    func expandGap(atRow row: Int, lines: ClosedRange<Int>? = nil) {
+        guard let document, document.rows.indices.contains(row),
+              let lines = lines ?? document.rows[row].gapLines,
               let path = file(atRow: row)?.path
         else { return }
-        expandedGaps[path, default: []].insert(gap)
+        revealedLines[path, default: []].insert(integersIn: lines)
+    }
+
+    /// For launch options: once the selected file has loaded, clicks the
+    /// first gap expansion in it whose label contains `label`.
+    func scriptedExpansion(containing label: String) async {
+        func target() -> (row: Int, lines: ClosedRange<Int>)? {
+            guard case .loaded(let document, let id) = documentState, id == documentKey else { return nil }
+            for (index, row) in document.rows.enumerated() where selectedFileIndex == nil || row.file == selectedFileIndex {
+                if let expansion = row.expansions.first(where: { $0.label.contains(label) }) {
+                    return (index, expansion.lines)
+                }
+            }
+            return nil
+        }
+        let deadline = ContinuousClock.now + .seconds(30)
+        while ContinuousClock.now < deadline, target() == nil {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        guard let target = target() else { return }
+        expandGap(atRow: target.row, lines: target.lines)
     }
 
     /// Clicking a file's header folds or unfolds it.
@@ -261,12 +290,12 @@ final class ReviewSession {
                 if let externalFile { try await LoadedReview.document(forFileAt: externalFile) }
                 else if isContinuous {
                     try await review.allFilesDocument(
-                        mode: mode, expandedGaps: expandedGaps, collapsed: collapsedPaths,
+                        mode: mode, revealed: revealedLines, collapsed: collapsedPaths,
                         viewed: Set(files.filter { isViewed($0) }.map(\.path))
                     )
                 }
                 else if let file = selectedFile {
-                    try await review.document(for: file, mode: mode, expandedGaps: expandedGaps[file.path] ?? [])
+                    try await review.document(for: file, mode: mode, revealed: revealedLines[file.path] ?? [])
                 }
                 else { CodeDocument(plainText: "", path: "") }
             guard !Task.isCancelled else { return }

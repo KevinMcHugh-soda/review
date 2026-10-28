@@ -9,8 +9,11 @@ import Foundation
 /// line it covers.
 public struct HighlightedLines: Sendable {
     private let lines: [[HighlightSpan]]
+    /// The file's functions, types and statements; see `SyntaxScope`.
+    public let scopes: [SyntaxScope]
 
-    public init(text: String, spans: [HighlightSpan]) {
+    public init(text: String, spans: [HighlightSpan], scopes: [SyntaxScope] = []) {
+        self.scopes = scopes
         let starts = Self.lineStarts(text)
         let length = (text as NSString).length
         var lines = [[HighlightSpan]](repeating: [], count: starts.count)
@@ -34,7 +37,9 @@ public struct HighlightedLines: Sendable {
     }
 
     public static func highlighting(_ text: String, as language: SyntaxLanguage?) -> Self {
-        Self(text: text, spans: language.map { Highlighter.highlight(text, as: $0) } ?? [])
+        guard let language else { return Self(text: text, spans: []) }
+        let analysis = Highlighter.analyze(text, as: language)
+        return Self(text: text, spans: analysis.spans, scopes: analysis.scopes)
     }
 
     /// The spans on a 1-based line; empty past the end of the file.

@@ -35,6 +35,12 @@ enum CodeAttributedText {
                     range: NSRange(location: offset, length: rowLength)
                 )
             }
+            for expansion in row.expansions {
+                result.addAttribute(
+                    .foregroundColor, value: Theme.Code.expansionText,
+                    range: NSRange(location: offset + expansion.columns.lowerBound, length: expansion.columns.count)
+                )
+            }
             // Spans arrive in paint order; later ones overwrite earlier ones.
             for span in row.spans {
                 let clipped = NSIntersectionRange(span.range, NSRange(location: 0, length: rowLength))
