@@ -398,6 +398,16 @@ The summaries GraphQL query asks for `latestOpinionatedReviews`; `gh search
 prs` can't return review state, so `GitHubClient.inbox` runs that query over
 the search results afterwards, and leaves every item unmarked if it fails.
 
+## Expanding gaps a piece at a time
+
+A gap row now offers "↓ 5 lines", "↑ 5 lines" and "rest of func run" (or
+class, method, statement, query string…) after its count; clicking the row
+elsewhere still shows all of it. Scopes are tree-sitter nodes from our own
+`ScopeQueries`, found in the same parse as highlighting. The session stores
+revealed head lines per file (`revealedLines: [String: IndexSet]`) instead of
+open gap indices. Launch options: `--reveal 290-299` shows lines,
+`--expand "rest of"` clicks a label. See plans/code-viewer.md.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in

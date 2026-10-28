@@ -158,3 +158,63 @@ struct HighlighterTests {
         return result
     }
 }
+
+@Suite
+struct SyntaxScopeTests {
+    private func scopes(_ text: String, _ language: SyntaxLanguage) -> [String: ClosedRange<Int>] {
+        Dictionary(Highlighter.analyze(text, as: language).scopes.map { ($0.label, $0.lines) }) { first, _ in first }
+    }
+
+    @Test("Finds Go functions, methods, types and multi-line raw strings")
+    func go() {
+        let text = """
+            package main
+
+            type Server struct {
+            \tname string
+            }
+
+            func (s *Server) Run() {
+            \tq := `
+            \t\tSELECT *
+            \t\tFROM users`
+            \t_ = q
+            }
+
+            func main() {
+            \tprintln("one line")
+            }
+            """
+        let found = scopes(text, .go)
+        #expect(found["type Server"] == 3...5)
+        #expect(found["func Run"] == 7...12)
+        #expect(found["string"] == 8...10)
+        #expect(found["func main"] == 14...16)
+    }
+
+    @Test("Finds TypeScript classes, methods and arrow functions bound to a name")
+    func typeScript() {
+        let text = """
+            export class Store {
+              load(id: string) {
+                return id
+              }
+            }
+
+            const greet = (name: string) => {
+              return name
+            }
+            """
+        let found = scopes(text, .typeScript)
+        #expect(found["class Store"] == 1...5)
+        #expect(found["method load"] == 2...4)
+        #expect(found["function greet"] == 7...9)
+    }
+
+    @Test("Finds each SQL statement")
+    func sql() {
+        let text = "SELECT id\nFROM users\nWHERE id = 1;\n\nUPDATE users\nSET name = 'x';\n"
+        let found = Highlighter.analyze(text, as: .sql).scopes.filter { $0.label == "statement" }.map(\.lines)
+        #expect(found == [1...3, 5...6])
+    }
+}

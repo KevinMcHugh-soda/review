@@ -19,8 +19,9 @@ final class CodeTextView: NSTextView {
     var onAddComment: (() -> Void)? {
         didSet { refreshCommentButton() }
     }
-    /// Clicking a collapsed gap between hunks, by row.
-    var onExpandGap: ((Int) -> Void)?
+    /// Clicking a collapsed gap between hunks, by row: one of its expansions'
+    /// lines, or nil for the whole gap.
+    var onExpandGap: ((Int, ClosedRange<Int>?) -> Void)?
     /// Clicking a file's header in the all-files view, by row.
     var onHeaderClick: ((Int) -> Void)?
     /// Asks what to show when the pointer rests on a symbol; nil for nothing.
@@ -206,12 +207,13 @@ final class CodeTextView: NSTextView {
             onNavigate?(.definition, index)
             return
         }
-        // A click on a collapsed gap opens it; on a file header, folds the file.
+        // A click on a collapsed gap opens it — or the part an expansion's
+        // label names; on a file header, folds the file.
         if !rowStarts.isEmpty {
             let clicked = row(containing: index)
             switch rows[clicked].kind {
             case .gap:
-                onExpandGap?(clicked)
+                onExpandGap?(clicked, expansion(at: event.locationInWindow)?.lines)
                 return
             case .fileHeader:
                 onHeaderClick?(clicked)
@@ -282,12 +284,27 @@ final class CodeTextView: NSTextView {
         return identifier ? range : nil
     }
 
+    /// The gap expansion whose label is under a point in the window.
+    private func expansion(at windowPoint: NSPoint) -> CodeDocument.Expansion? {
+        guard let layoutManager, let textContainer, !rowStarts.isEmpty else { return nil }
+        let point = convert(windowPoint, from: nil)
+        let local = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
+        var fraction: CGFloat = 0
+        let glyph = layoutManager.glyphIndex(for: local, in: textContainer, fractionOfDistanceThroughGlyph: &fraction)
+        let glyphRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: textContainer)
+        guard glyphRect.contains(local) else { return nil }
+        let index = layoutManager.characterIndexForGlyph(at: glyph)
+        let row = row(containing: index)
+        return rows[row].expansion(atColumn: index - rowStarts[row])
+    }
+
     private func pointerMoved(to windowPoint: NSPoint, commandDown: Bool) {
         let word = symbol(at: convert(windowPoint, from: nil))
         // ⌘ held over a symbol: underline it and show it can be clicked.
         let jumpable = commandDown && onNavigate != nil ? word : nil
         setUnderline(jumpable)
-        if jumpable != nil { NSCursor.pointingHand.set() } else { NSCursor.iBeam.set() }
+        let isClickable = jumpable != nil || expansion(at: windowPoint) != nil
+        if isClickable { NSCursor.pointingHand.set() } else { NSCursor.iBeam.set() }
 
         guard word != hoveredWord else { return }
         hoveredWord = word

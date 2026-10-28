@@ -9,8 +9,9 @@ struct CodeViewActions {
     let onAddComment: () -> Void
     let onSelectDraft: (UUID) -> Void
     let onSelectThread: (String) -> Void
-    /// Both by row: the session finds the file and gap from it.
-    let onExpandGap: (Int) -> Void
+    /// Both by row: the session finds the file and gap from it. The gap
+    /// takes the head lines to show, or nil for all of it.
+    let onExpandGap: (Int, ClosedRange<Int>?) -> Void
     let onHeaderClick: (Int) -> Void
     let onTopRowChange: (Int) -> Void
     let onHover: (Cursor) async -> String?

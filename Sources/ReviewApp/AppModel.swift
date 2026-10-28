@@ -71,8 +71,9 @@ final class AppModel {
         if !selected.hasStarted { await load(selected) }
         if let filePath = options.filePath {
             selected.selectedFilePath = filePath
-            for gap in options.expandedGaps { selected.expandedGaps[filePath, default: []].insert(gap) }
+            for lines in options.revealedLines { selected.revealedLines[filePath, default: []].insert(integersIn: lines) }
         }
+        if let label = options.expansion { await selected.scriptedExpansion(containing: label) }
         if let navigation = options.navigation {
             await selected.performWhenReady(navigation.action, line: navigation.line, column: navigation.column)
         }

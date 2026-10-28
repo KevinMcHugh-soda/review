@@ -193,6 +193,9 @@ enum Theme {
         }
 
         static let hunkHeaderText = NSColor.secondaryLabelColor
+        /// A gap's "↑ 5 lines" and "rest of func run": clickable, so the link
+        /// colour.
+        static let expansionText = NSColor.linkColor
         /// A file's heading in the all-files view: the code font, bold.
         static var fileHeaderFont: NSFont {
             NSFont.monospacedSystemFont(ofSize: font.pointSize, weight: .semibold)

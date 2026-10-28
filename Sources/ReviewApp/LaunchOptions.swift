@@ -7,7 +7,11 @@ import ReviewKit
 /// - `--open <pr>` opens a pull request at launch.
 /// - `--file <path>` selects a changed file in it.
 /// - `--mode diff|split|file` picks the view.
-/// - `--expand <gap>` expands a gap between hunks (repeatable).
+/// - `--reveal <start>-<end>` shows those head lines out of the gaps between
+///   hunks (repeatable).
+/// - `--expand <label>` clicks the first gap expansion in the file whose label
+///   contains the text — `--expand "rest of"`, `--expand "↑"` — once the
+///   file has loaded.
 /// - `--navigate <action> --line <n> --column <c>` runs a navigation action
 ///   (`definition`, `references`, `callers`, …) at a head-side line and
 ///   UTF-16 column once the servers are ready.
@@ -34,7 +38,8 @@ struct LaunchOptions {
     let pullRequest: String?
     let filePath: String?
     let mode: CodeDocument.Mode?
-    let expandedGaps: [Int]
+    let revealedLines: [ClosedRange<Int>]
+    let expansion: String?
     /// `--continuous on|off`: every file in one scroll, or one at a time.
     let continuous: Bool?
     let navigation: (action: NavigationAction, line: Int, column: Int)?
@@ -59,8 +64,13 @@ struct LaunchOptions {
         filePath = value(after: "--file")
         mode = value(after: "--mode").flatMap(CodeDocument.Mode.init(rawValue:))
         continuous = value(after: "--continuous").map { $0 == "on" }
-        expandedGaps = arguments.indices.filter { arguments[$0] == "--expand" && arguments.indices.contains($0 + 1) }
-            .compactMap { Int(arguments[$0 + 1]) }
+        revealedLines = arguments.indices.filter { arguments[$0] == "--reveal" && arguments.indices.contains($0 + 1) }
+            .compactMap { index in
+                let bounds = arguments[index + 1].split(separator: "-").compactMap { Int($0) }
+                guard let first = bounds.first, let last = bounds.last, first <= last else { return nil }
+                return first...last
+            }
+        expansion = value(after: "--expand")
         if let action = value(after: "--navigate").flatMap(NavigationAction.init(rawValue:)),
            let line = value(after: "--line").flatMap(Int.init)
         {

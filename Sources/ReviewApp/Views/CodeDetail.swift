@@ -148,7 +148,7 @@ struct CodeDetail: View {
                 session.expand(threadID: id)
                 session.isInspectorShown = true
             },
-            onExpandGap: { session.expandGap(atRow: $0) },
+            onExpandGap: { session.expandGap(atRow: $0, lines: $1) },
             onHeaderClick: { session.toggleFile(atRow: $0) },
             onTopRowChange: { session.didScroll(toRow: $0) },
             onHover: { await session.hover(at: $0) }
