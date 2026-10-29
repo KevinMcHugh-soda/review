@@ -59,6 +59,15 @@ extension ReviewSession {
         updateDraft(id) { $0.body = body }
     }
 
+    /// A draft's note, for a text editor to bind to. It reads the session's
+    /// copy, not a view's snapshot of the draft: a snapshot is a keystroke
+    /// behind, and an editor handed back older text replaces its contents and
+    /// moves the cursor to the end.
+    subscript(bodyOf id: UUID) -> String {
+        get { draft(id)?.body ?? "" }
+        set { setBody(newValue, of: id) }
+    }
+
     func deleteDraft(_ id: UUID) {
         askTasks[id]?.cancel()
         notes.drafts.removeAll { $0.id == id }
