@@ -25,10 +25,7 @@ struct DraftCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: Theme.codeBlockCornerRadius))
 
-            TextEditor(text: Binding(
-                get: { draft.body },
-                set: { session.setBody($0, of: draft.id) }
-            ))
+            TextEditor(text: $session[bodyOf: draft.id])
             .font(Theme.Fonts.note)
             .scrollContentBackground(.hidden)
             .frame(minHeight: Theme.noteMinHeight, maxHeight: Theme.noteMaxHeight)

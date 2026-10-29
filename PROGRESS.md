@@ -597,3 +597,10 @@ same file, above its hunk, did nothing. `show` now runs that step itself when
 the document stays the same. Scripted `--navigate` in the all-files view also
 timed out: scrolling reselected the top file before the servers were ready, so
 it now takes the file when it starts waiting.
+
+**Typing mid-line in a draft sent the cursor to the end.** The note's
+`TextEditor` was bound with `Binding(get: { draft.body }, …)`, and `draft` is
+the card's snapshot from its last render, so it reads one keystroke behind.
+Handed older text than it holds, the editor replaces its contents, which puts
+the cursor at the end; typing at the end hid it. The editor now binds to
+`$session[bodyOf: id]`, which reads the session's copy.
