@@ -65,4 +65,47 @@ struct SearchDecodingTests {
         let names = GitHubClient.decodeRepositoryNames("sodahealth/k8s-flux\nsodahealth/harmony\n\nnot a repo\nsodahealth/k8s-flux\n")
         #expect(names.map(\.description) == ["sodahealth/k8s-flux", "sodahealth/harmony"])
     }
+
+    @Test("Changed files by alias, flagging a pull request with more than one page")
+    func changedFiles() throws {
+        let references = [
+            PullRequestReference(owner: "acme", repository: "r", number: 1),
+            PullRequestReference(owner: "acme", repository: "r", number: 2),
+            PullRequestReference(owner: "acme", repository: "gone", number: 3),
+        ]
+        let json = #"""
+            {"data": {
+              "pr0": {"pullRequest": {"files": {"totalCount": 1, "nodes": [{"path": "a.go", "additions": 3, "deletions": 1}]}}},
+              "pr1": {"pullRequest": {"files": {"totalCount": 250, "nodes": [{"path": "b.go", "additions": 1, "deletions": 0}]}}},
+              "pr2": null
+            }}
+            """#
+        let pages = try GitHubClient.decodeChangedFiles(Data(json.utf8), for: references)
+        #expect(pages[references[0]]?.files == [ChangedFileCount(path: "a.go", additions: 3, deletions: 1)])
+        #expect(pages[references[0]]?.isComplete == true)
+        #expect(pages[references[1]]?.isComplete == false)
+        #expect(pages[references[2]] == nil)
+        #expect(GitHubClient.changedFilesQuery(references).contains(#"pr2: repository(owner: "acme", name: "gone") { pullRequest(number: 3)"#))
+    }
+
+    @Test("REST's tab-separated file list, skipping lines it cannot read")
+    func changedFileLines() {
+        let files = GitHubClient.decodeChangedFileLines("a.go\t3\t1\nspaced name.go\t0\t2\nbroken\n")
+        #expect(files == [
+            ChangedFileCount(path: "a.go", additions: 3, deletions: 1),
+            ChangedFileCount(path: "spaced name.go", additions: 0, deletions: 2),
+        ])
+    }
+
+    @Test("A repository without .gitattributes, or one that cannot be seen, has none")
+    func gitAttributes() throws {
+        let repositories = [RepositoryName(owner: "acme", name: "a"), RepositoryName(owner: "acme", name: "b"), RepositoryName(owner: "acme", name: "c")]
+        let json = #"""
+            {"data": {"r0": {"object": {"text": "*.pb.go linguist-generated\n"}}, "r1": {"object": null}, "r2": null}}
+            """#
+        let texts = try GitHubClient.decodeGitAttributes(Data(json.utf8), for: repositories)
+        #expect(texts[repositories[0]] == "*.pb.go linguist-generated\n")
+        #expect(texts[repositories[1]] == "")
+        #expect(texts[repositories[2]] == "")
+    }
 }

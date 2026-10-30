@@ -442,6 +442,13 @@ unfiltered on harmony too: 50 of 89 open PRs, draft and "in sidebar" tags,
 review states, Load More. `--state merged --reviewed-by @me` and a drafts-by-
 author search checked through the CLI. **Tests: 175.**
 
+**Implementation lines.** The Size column became Implementation: harmony's
+PR Line Count rules, so generated and vendored files (from `.gitattributes`),
+tests and docs are left out; the tooltip has every category. `.gitattributes`
+is matched in Swift (`GitAttributes`), not `git check-attr`, since most listed
+PRs have no checkout. Matched the script's table on all 55 harmony PRs that
+carry the `line-count` label. **Tests: 183.**
+
 **Not exercised by hand:** clicking (double-click to open, Add Filter, the
 token's role menu, Track from a repository's menu, Load More, the last row
 fetching the next page) — a scripted launch cannot click. Light mode not

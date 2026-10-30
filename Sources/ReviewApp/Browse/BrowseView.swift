@@ -28,6 +28,7 @@ struct BrowseView: View {
                 guard !Task.isCancelled else { return }
             }
             await browser.search(query)
+            await browser.countLines()
         }
     }
 

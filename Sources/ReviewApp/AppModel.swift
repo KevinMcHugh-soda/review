@@ -76,6 +76,10 @@ final class AppModel {
         guard let pullRequest = options.pullRequest, (try? open(pullRequest)) != nil, let selected = selectedSession else {
             if let snapshotPath = options.snapshotPath {
                 try? await Task.sleep(for: .seconds(4))
+                // The browser searches, then counts lines; wait for both.
+                for _ in 0..<60 where isBrowsing && (browser.resultsQuery == nil || browser.isSearching || browser.isCounting) {
+                    try? await Task.sleep(for: .milliseconds(500))
+                }
                 LaunchOptions.writeSnapshot(to: snapshotPath)
                 NSApplication.shared.terminate(nil)
             }
@@ -297,9 +301,15 @@ final class AppModel {
     /// Only when it is showing: otherwise it searches afresh when it is.
     private func refreshBrowser() async {
         guard isBrowsing else { return }
+        browser.forgetAttributes()
         async let repositories: Void = browser.loadRepositories(force: true)
-        async let results: Void = browser.search(browser.query(tracked: trackedRepositories))
+        async let results: Void = searchAndCount()
         _ = await (repositories, results)
+    }
+
+    private func searchAndCount() async {
+        await browser.search(browser.query(tracked: trackedRepositories))
+        await browser.countLines()
     }
 
     /// Failure leaves the last known statuses; the sidebar still works.

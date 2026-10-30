@@ -78,6 +78,26 @@ public struct AppServices: Sendable {
         return try await GitHubClient(gh: gh, environment: environment.variables).searchPullRequests(query, after: cursor)
     }
 
+    /// Each pull request's lines split into implementation, generated, tests
+    /// and documentation. `.gitattributes` is fetched for repositories not in
+    /// `known` and returned for the caller to keep; nil when gh is missing.
+    public func reviewSizes(
+        of references: [PullRequestReference],
+        attributes known: [RepositoryName: GitAttributes]
+    ) async throws -> (sizes: [PullRequestReference: ReviewSize], attributes: [RepositoryName: GitAttributes])? {
+        guard let gh = environment.locate(Tool.gh.executableName) else { return nil }
+        let github = GitHubClient(gh: gh, environment: environment.variables)
+        let unknown = Array(Set(references.map(\.repositoryName)).subtracting(known.keys)).sorted()
+        async let fetchedFiles = github.changedFiles(of: references)
+        async let fetchedAttributes = github.gitAttributes(of: unknown)
+        let files = try await fetchedFiles
+        let attributes = try await fetchedAttributes.mapValues(GitAttributes.init(parsing:)).merging(known) { new, _ in new }
+        let sizes = files.reduce(into: [PullRequestReference: ReviewSize]()) { sizes, entry in
+            sizes[entry.key] = ReviewSize(files: entry.value, attributes: attributes[entry.key.repositoryName] ?? GitAttributes(parsing: ""))
+        }
+        return (sizes, attributes)
+    }
+
     /// The repositories the reviewer can see, most recently pushed first; nil
     /// when gh is missing.
     public func repositories() async throws -> [RepositoryName]? {

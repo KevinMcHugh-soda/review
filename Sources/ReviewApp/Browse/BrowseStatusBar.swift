@@ -8,11 +8,14 @@ struct BrowseStatusBar: View {
     var body: some View {
         let browser = model.browser
 
+        let isBusy = browser.isSearching || browser.isLoadingMore || browser.isCounting
+
         HStack(spacing: Theme.tightSpacing) {
             ProgressView()
                 .controlSize(.small)
-                .opacity(browser.isSearching || browser.isLoadingMore ? 1 : 0)
-                .accessibilityHidden(!(browser.isSearching || browser.isLoadingMore))
+                .opacity(isBusy ? 1 : 0)
+                .accessibilityHidden(!isBusy)
+                .help(browser.isCounting ? "Counting implementation lines" : "Searching")
             Text(summary)
                 .font(Theme.Fonts.meta)
                 .foregroundStyle(.secondary)

@@ -26,6 +26,19 @@ final class PullRequestBrowser {
     private(set) var isLoadingMore = false
     private(set) var searchError: String?
 
+    /// Line counts by category, for the head commit they were counted at;
+    /// see `size(of:)`.
+    private(set) var sizes: [PullRequestReference: CountedSize] = [:]
+    private var counting: Set<PullRequestReference> = []
+    /// Each repository's `.gitattributes`, read once per session (and again
+    /// on Refresh), for telling generated files apart.
+    private var attributes: [RepositoryName: GitAttributes] = [:]
+
+    struct CountedSize {
+        let headSHA: String?
+        let size: ReviewSize
+    }
+
     /// Every repository the reviewer can see, most recently pushed first.
     private(set) var repositories: [RepositoryName] = []
     private(set) var isLoadingRepositories = false
@@ -96,6 +109,39 @@ final class PullRequestBrowser {
         let known = Set(listings.map(\.reference))
         listings += page.listings.filter { !known.contains($0.reference) }
         nextCursor = page.nextCursor
+        isLoadingMore = false
+        await countLines()
+    }
+
+    var isCounting: Bool { !counting.isEmpty }
+
+    /// Nil until counted, and again once the pull request has a new head.
+    func size(of listing: PullRequestListing) -> ReviewSize? {
+        sizes[listing.reference].flatMap { $0.headSHA == listing.headSHA ? $0.size : nil }
+    }
+
+    /// Splits each listed pull request's lines into implementation,
+    /// generated, tests and documentation — GitHub's own totals count
+    /// generated output, which for one OpenAPI or sqlc change is most of the
+    /// diff. Failure leaves those rows showing GitHub's totals.
+    func countLines() async {
+        guard let services else { return }
+        let needed = listings.filter { size(of: $0) == nil && !counting.contains($0.reference) }
+        guard !needed.isEmpty else { return }
+        counting.formUnion(needed.map(\.reference))
+        defer { counting.subtract(needed.map(\.reference)) }
+        guard let counted = try? await services.reviewSizes(of: needed.map(\.reference), attributes: attributes) else { return }
+        attributes = counted.attributes
+        for listing in needed {
+            guard let size = counted.sizes[listing.reference] else { continue }
+            sizes[listing.reference] = CountedSize(headSHA: listing.headSHA, size: size)
+        }
+    }
+
+    /// A repository's generated-file rules may have changed since.
+    func forgetAttributes() {
+        attributes = [:]
+        sizes = [:]
     }
 
     /// Fetched once, when the browser is first shown, and again on Refresh.

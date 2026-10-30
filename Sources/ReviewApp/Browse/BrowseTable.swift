@@ -38,16 +38,10 @@ struct BrowseTable: View {
                 ReviewStateLabel(state: listing.reviewState)
             }
             .width(min: Theme.browseNarrowColumnWidth, ideal: Theme.browseWideColumnWidth)
-            TableColumn("Size") { listing in
-                HStack(spacing: Theme.tightSpacing) {
-                    Text("+\(listing.additions)").foregroundStyle(.green)
-                    Text("−\(listing.deletions)").foregroundStyle(.red)
-                }
-                .font(Theme.Fonts.counts)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(listing.additions) added, \(listing.deletions) removed")
+            TableColumn("Implementation") { listing in
+                BrowseSizeCell(listing: listing, size: browser.size(of: listing))
             }
-            .width(min: Theme.browseNarrowColumnWidth, ideal: Theme.browseNarrowColumnWidth)
+            .width(min: Theme.browseNarrowColumnWidth, ideal: Theme.browseWideColumnWidth)
             TableColumn("Updated") { listing in
                 Text(listing.updatedAt, format: .relative(presentation: .named))
                     .foregroundStyle(.secondary)

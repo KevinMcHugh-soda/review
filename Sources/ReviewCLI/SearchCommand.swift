@@ -75,10 +75,16 @@ struct Search: AsyncParsableCommand {
             listings += next.listings
         }
         print("\(page.totalCount) pull requests\n")
+        let sizes = (try? await services.reviewSizes(of: listings.map(\.reference), attributes: [:]))??.sizes ?? [:]
         for listing in listings {
             var tags = [listing.status == .open ? nil : listing.status.title.lowercased(), listing.reviewState?.title.lowercased()]
                 .compactMap(\.self)
-            tags.append("+\(listing.additions) −\(listing.deletions)")
+            if let size = sizes[listing.reference] {
+                let lines = size[.implementation]
+                tags.append("implementation +\(lines.additions) −\(lines.deletions) of +\(listing.additions) −\(listing.deletions)")
+            } else {
+                tags.append("+\(listing.additions) −\(listing.deletions)")
+            }
             print("\(listing.reference)  \(listing.title)")
             print("    \(listing.author) · updated \(listing.updatedAt.formatted(.relative(presentation: .named))) · \(tags.joined(separator: " · "))")
         }

@@ -25,6 +25,8 @@ public struct PullRequestListing: Hashable, Sendable, Identifiable {
     public let additions: Int
     public let deletions: Int
     public let reviewState: ReviewState?
+    /// The head commit, so a size counted for it is known to be current.
+    public let headSHA: String?
 
     public var id: PullRequestReference { reference }
 
@@ -37,7 +39,8 @@ public struct PullRequestListing: Hashable, Sendable, Identifiable {
         updatedAt: Date,
         additions: Int = 0,
         deletions: Int = 0,
-        reviewState: ReviewState? = nil
+        reviewState: ReviewState? = nil,
+        headSHA: String? = nil
     ) {
         self.reference = reference
         self.title = title
@@ -48,6 +51,7 @@ public struct PullRequestListing: Hashable, Sendable, Identifiable {
         self.additions = additions
         self.deletions = deletions
         self.reviewState = reviewState
+        self.headSHA = headSHA
     }
 }
 

@@ -16,7 +16,7 @@ extension GitHubClient {
                 pageInfo { hasNextPage endCursor }
                 nodes {
                   ... on PullRequest {
-                    number title isDraft state createdAt updatedAt additions deletions reviewDecision
+                    number title isDraft state createdAt updatedAt additions deletions reviewDecision headRefOid
                     repository { nameWithOwner }
                     author { login }
                     latestOpinionatedReviews(first: 100) { nodes { state } }
@@ -68,6 +68,7 @@ extension GitHubClient {
                 let additions: Int?
                 let deletions: Int?
                 let reviewDecision: String?
+                let headRefOid: String?
                 let repository: Repository?
                 let author: Author?
                 let latestOpinionatedReviews: Reviews?
@@ -96,7 +97,8 @@ extension GitHubClient {
                 reference: reference, title: title, author: node.author?.login ?? "ghost", status: status,
                 createdAt: createdAt, updatedAt: updatedAt,
                 additions: node.additions ?? 0, deletions: node.deletions ?? 0,
-                reviewState: reviewState(decision: node.reviewDecision, reviews: reviews)
+                reviewState: reviewState(decision: node.reviewDecision, reviews: reviews),
+                headSHA: node.headRefOid
             )
         }
         return PullRequestSearchPage(
