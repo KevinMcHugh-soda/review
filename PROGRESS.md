@@ -421,6 +421,39 @@ follow it. Stored in `file-order.json` beside the other stores. Rules take
 wildcards — `internal/*/*.yaml` for Harmony's hand-written API specs, `**` across
 directories. See plans/file-order.md.
 
+## Browsing pull requests
+
+A **Browse** row at the top of the sidebar (⇧⌘B) swaps the files and code
+columns for a pull request browser: where to search in the middle (Involving
+You, Tracked Repositories, then each of the reviewer's 128 repositories, with
+a filter field), and a table on the right — title, number, author, review
+state, size, updated — with a title search in the toolbar and a filter bar:
+state, drafts, review, and person tokens from Add Filter (author is / is not,
+reviewed by, review requested from, assignee, involves; quick filters for
+@me). Double-click or Return opens a PR in the sidebar. Scope and filter
+survive a relaunch. `review search` runs the same query headless. See
+plans/browse.md.
+
+**Verified:** `review search ledger --repo sodahealth/harmony --drafts ready
+--not-author @me` and the app, scripted with `--browse sodahealth/harmony
+--search ledger` and a saved filter with a bad login, both returned the same
+three PRs; the bad login was outlined and left out of the query. Rendered
+unfiltered on harmony too: 50 of 89 open PRs, draft and "in sidebar" tags,
+review states, Load More. `--state merged --reviewed-by @me` and a drafts-by-
+author search checked through the CLI. **Tests: 175.**
+
+**Implementation lines.** The Size column became Implementation: harmony's
+PR Line Count rules, so generated and vendored files (from `.gitattributes`),
+tests and docs are left out; the tooltip has every category. `.gitattributes`
+is matched in Swift (`GitAttributes`), not `git check-attr`, since most listed
+PRs have no checkout. Matched the script's table on all 55 harmony PRs that
+carry the `line-count` label. **Tests: 183.**
+
+**Not exercised by hand:** clicking (double-click to open, Add Filter, the
+token's role menu, Track from a repository's menu, Load More, the last row
+fetching the next page) — a scripted launch cannot click. Light mode not
+checked.
+
 ## What next
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
