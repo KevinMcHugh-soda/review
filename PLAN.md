@@ -31,6 +31,7 @@ and no Xcode IDE — which itself came from
 | [plans/lsp.md](plans/lsp.md) | The language-server client, gopls and typescript-language-server |
 | [plans/claude-integration.md](plans/claude-integration.md) | How drafts are sent to `claude -p`, and the safety boundary |
 | [plans/github.md](plans/github.md) | Reading PRs and posting reviews through `gh` |
+| [plans/file-order.md](plans/file-order.md) | Per-repository order for changed files |
 | [plans/design-system.md](plans/design-system.md) | Theme, type scale, UI shape |
 | [SWIFTUI-RULES.md](SWIFTUI-RULES.md) | House SwiftUI style — takes precedence where it conflicts |
 | [PROGRESS.md](PROGRESS.md) | What is built, what is next |

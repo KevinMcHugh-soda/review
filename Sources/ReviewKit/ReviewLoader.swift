@@ -15,9 +15,15 @@ public struct LoadedReview: Sendable {
     /// the PR itself changes. The merge base stays on the API's commit, so the
     /// diff — and every line a comment is posted on — matches GitHub's.
     public let baseTip: String
-    /// The changed files, generated ones last — as GitHub orders them, and
-    /// as the file list and the all-files view show them.
-    public let files: [FileDiff]
+    /// The changed files as the file list and the all-files view show them:
+    /// in the reviewer's `fileOrder`, generated ones last.
+    public private(set) var files: [FileDiff]
+    /// The reviewer's order for this repository; empty leaves files as
+    /// GitHub orders them.
+    public private(set) var fileOrder = FileOrder()
+    /// The files as git lists them, generated ones last — what `fileOrder`
+    /// rearranges.
+    let diffOrder: [FileDiff]
     /// Paths marked `linguist-generated` in `.gitattributes` at head or the
     /// base tip: collapsed until clicked, like GitHub.
     public let generatedPaths: Set<String>
@@ -26,6 +32,31 @@ public struct LoadedReview: Sendable {
     public let merge: GitClient.MergeResult?
     let repository: URL
     let git: GitClient
+
+    init(
+        pullRequest: PullRequest, mergeBase: String, baseTip: String, files: [FileDiff], generatedPaths: Set<String>,
+        merge: GitClient.MergeResult?, repository: URL, git: GitClient
+    ) {
+        self.pullRequest = pullRequest
+        self.mergeBase = mergeBase
+        self.baseTip = baseTip
+        self.files = files
+        diffOrder = files
+        self.generatedPaths = generatedPaths
+        self.merge = merge
+        self.repository = repository
+        self.git = git
+    }
+
+    /// The same review with its files in `order`. Generated files stay last.
+    public func ordered(by order: FileOrder) -> Self {
+        var review = self
+        review.fileOrder = order
+        let isGenerated = { (file: FileDiff) in generatedPaths.contains(file.path) }
+        review.files = order.sorted(diffOrder.filter { !isGenerated($0) }, path: \.path)
+            + order.sorted(diffOrder.filter(isGenerated), path: \.path)
+        return review
+    }
 
     /// The base has moved and merging is clean, so whole-file views can show
     /// the real after-merge text.

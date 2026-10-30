@@ -38,6 +38,7 @@ struct Show: AsyncParsableCommand {
         let review = try await loader.load(reference) { step in
             FileHandle.standardError.write(Data("→ \(step.rawValue)…\n".utf8))
         }
+        .ordered(by: services.fileOrders.order(for: reference.repositorySlug))
         let elapsed = ContinuousClock.now - started
 
         if all {

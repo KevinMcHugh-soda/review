@@ -408,13 +408,28 @@ revealed head lines per file (`revealedLines: [String: IndexSet]`) instead of
 open gap indices. Launch options: `--reveal 290-299` shows lines,
 `--expand "rest of"` clicks a label. See plans/code-viewer.md.
 
+## File order per repository
+
+Changed files no longer have to come alphabetically. Settings › File Order
+keeps, per repository, a list of directories to read first — `db`, then
+`pkg/sponsor`, then `pkg/admin` — with an Everything Else row marking where
+unlisted files go, so `cmd` can be put last. The most specific listed
+directory wins; ties keep git's order; generated files stay last. A file's
+context menu has Show First / Show Last for each of its directories, and Edit
+File Order…. The file list, the all-files scroll, ⌥⌘↑/↓ and `review show` all
+follow it. Stored in `file-order.json` beside the other stores. See
+plans/file-order.md.
+
 ## What next
+
 
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
    `deinit`; flush pending note saves on quit.
 2. Navigation on removed lines (a base worktree) and in the after-merge view.
 3. Sync viewed state with GitHub (`markFileAsViewed`).
 4. The inbox's quieter title colour.
+5. File order without rules: sort by the import graph (Go packages and TS
+   relative imports among the changed files), dependencies first.
 
 ## Things that bit us
 

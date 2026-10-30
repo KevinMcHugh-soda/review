@@ -53,6 +53,8 @@ public struct AppServices: Sendable {
 
     public var trackedRepositories: TrackedRepositoriesStore { TrackedRepositoriesStore(root: CheckoutStore.defaultRoot) }
 
+    public var fileOrders: FileOrderStore { FileOrderStore(root: CheckoutStore.defaultRoot) }
+
     /// Open pull requests the reviewer is asked to review, assigned, or wrote,
     /// in these repositories — every repository when empty; nil when gh is
     /// missing.

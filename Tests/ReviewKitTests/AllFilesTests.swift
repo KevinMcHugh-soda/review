@@ -20,6 +20,20 @@ struct AllFilesTests {
         #expect(review.files.contains { $0.path == "not-generated.go" })
     }
 
+    @Test("Orders files by the reviewer's rules, keeping generated ones last")
+    func reviewerOrder() async throws {
+        let fixture = try await FixtureRepository.make()
+        defer { fixture.remove() }
+        let review = try await CheckoutAndDiffTests.load(fixture)
+        let last = try #require(review.files.dropLast().last?.path)
+
+        let ordered = review.ordered(by: FileOrder(rules: [last, "api.pb.go"]))
+        #expect(ordered.files.first?.path == last)
+        #expect(ordered.files.last?.path == "api.pb.go")
+        #expect(Set(ordered.files.map(\.path)) == Set(review.files.map(\.path)))
+        #expect(ordered.ordered(by: FileOrder()).files == review.files)
+    }
+
     /// harmony#13296 branched before main marked `internal/*api/client.go`
     /// generated; its head's `.gitattributes` has no such rule.
     @Test("Takes a generated rule the base added after the branch point")
