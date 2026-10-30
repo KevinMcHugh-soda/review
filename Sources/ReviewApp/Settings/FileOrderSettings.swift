@@ -12,7 +12,7 @@ struct FileOrderSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacing) {
-            Text("Changed files in these directories come first, in this order — the most specific directory wins. Drag to reorder.")
+            Text("Changed files in these directories come first, in this order — the most specific match wins. Drag to reorder. Use * within a name and ** across directories: internal/*/*.yaml.")
                 .font(Theme.Fonts.meta)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -42,7 +42,7 @@ struct FileOrderSettings: View {
                 Button("Remove", systemImage: "minus", action: removeSelected)
                     .labelStyle(.iconOnly)
                     .disabled(selection.isEmpty)
-                TextField("db or pkg/sponsor", text: $text)
+                TextField("db, pkg/sponsor or internal/*/*.yaml", text: $text)
                     .textFieldStyle(.roundedBorder)
                     .onSubmit(add)
                 Button("Add", action: add)
@@ -70,7 +70,7 @@ struct FileOrderSettings: View {
                 .italic()
                 .foregroundStyle(.secondary)
         } else {
-            Text(rule + "/")
+            Text(FileOrder.isPattern(rule) ? rule : rule + "/")
                 .font(Theme.Fonts.codeSmall)
                 .lineLimit(1)
                 .truncationMode(.middle)

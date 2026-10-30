@@ -60,6 +60,35 @@ struct FileOrderTests {
         #expect(order.rank(of: "db") == 0)
     }
 
+    /// Harmony's `internal` is generated but for its hand-written API specs.
+    @Test("Matches wildcards within a component, holding what lies beneath")
+    func wildcards() {
+        let order = FileOrder(rules: ["internal/*/*.yaml", "db", "*"])
+        #expect(order.rank(of: "internal/sponsorapi/sponsorapi.yaml") == 0)
+        #expect(order.rank(of: "internal/sponsorapi/client.go") == 2)
+        #expect(order.rank(of: "internal/sponsorapi.yaml") == 2)
+        #expect(order.rank(of: "internal/a/b/spec.yaml") == 2)
+        #expect(FileOrder(rules: ["pkg/*"]).rank(of: "pkg/sponsor/handler.go") == 0)
+        #expect(FileOrder(rules: ["v?"]).rank(of: "v2/api.go") == 0)
+    }
+
+    @Test("Matches any number of components with **")
+    func doubleStar() {
+        let order = FileOrder(rules: ["**/*.sql"])
+        #expect(order.rank(of: "schema.sql") == 0)
+        #expect(order.rank(of: "db/sponsor/queries/enrollment.sql") == 0)
+        #expect(order.rank(of: "db/sponsor/queries/enrollment.sql.go") == 1)
+        #expect(FileOrder(rules: ["internal/**/openapi.yaml"]).rank(of: "internal/a/b/openapi.yaml") == 0)
+    }
+
+    @Test("Prefers the more specific of two matching patterns")
+    func patternSpecificity() {
+        let order = FileOrder(rules: ["internal", "internal/*/*", "internal/*/*.yaml"])
+        #expect(order.rank(of: "internal/sponsorapi/sponsorapi.yaml") == 2)
+        #expect(order.rank(of: "internal/sponsorapi/client.go") == 1)
+        #expect(order.rank(of: "internal/README.md") == 0)
+    }
+
     @Test("Tidies rules: slashes, ./, blanks and repeats")
     func normalizes() {
         #expect(FileOrder(rules: [" ./db/ ", "", "pkg/sponsor/", "db"]).rules == ["db", "pkg/sponsor"])
