@@ -422,7 +422,6 @@ plans/file-order.md.
 
 ## What next
 
-
 1. The two review comments on review#1: remove `SplitCodeView`'s observers in
    `deinit`; flush pending note saves on quit.
 2. Navigation on removed lines (a base worktree) and in the after-merge view.
