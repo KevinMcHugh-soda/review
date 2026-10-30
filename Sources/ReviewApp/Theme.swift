@@ -34,6 +34,19 @@ enum Theme {
     static let filesIdealWidth: CGFloat = 300
     static let filesMaxWidth: CGFloat = 480
 
+    // MARK: Browser
+    static let scopesMinWidth: CGFloat = 200
+    static let scopesIdealWidth: CGFloat = 240
+    static let scopesMaxWidth: CGFloat = 360
+    static let browseTitleMinWidth: CGFloat = 200
+    static let browseTitleIdealWidth: CGFloat = 420
+    static let browseNarrowColumnWidth: CGFloat = 70
+    static let browseWideColumnWidth: CGFloat = 130
+    /// A person filter's login field: room for most logins, not a sentence.
+    static let loginFieldWidth: CGFloat = 120
+    /// How long typing pauses before the browser searches.
+    static let searchDelay = Duration.milliseconds(350)
+
     // MARK: Results panel
     static let resultsMinHeight: CGFloat = 120
     static let resultsIdealHeight: CGFloat = 220

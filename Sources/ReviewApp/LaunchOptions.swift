@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ReviewCore
 import ReviewKit
 
 /// Launch-time options, for development and for scripting the app.
@@ -22,6 +23,9 @@ import ReviewKit
 /// - `--settings on` opens Settings; a snapshot writes it as `-settings.png`.
 /// - `--post-sheet` opens the Post Review sheet (it only plans; nothing is
 ///   sent without pressing Post).
+/// - `--browse on|tracked|me|<owner/repo>` shows the pull request browser,
+///   searching where it last did (`on`) or in that scope.
+/// - `--search <words>` types words into the browser's search field.
 /// - `--hover <line>:<column>` shows the hover for the symbol at a head-side
 ///   line and UTF-16 column, once the servers are ready.
 ///
@@ -49,6 +53,9 @@ struct LaunchOptions {
     let showsSidebar: Bool
     let opensSettings: Bool
     let hover: (line: Int, column: Int)?
+    /// Nil without `--browse`; `.some(nil)` for `--browse on`.
+    let browseScope: BrowseScope??
+    let searchKeywords: String?
     let snapshotPath: String?
 
     static let current = Self(
@@ -91,6 +98,14 @@ struct LaunchOptions {
         opensSettings = value(after: "--settings") == "on"
         let hoverParts = value(after: "--hover")?.split(separator: ":").compactMap { Int($0) } ?? []
         hover = hoverParts.count == 2 ? (hoverParts[0], hoverParts[1]) : nil
+        browseScope = value(after: "--browse").map { value -> BrowseScope? in
+            switch value {
+            case "tracked": .tracked
+            case "me": .involvingMe
+            default: (try? RepositoryName(parsing: value)).map(BrowseScope.repository)
+            }
+        }
+        searchKeywords = value(after: "--search")
         snapshotPath = environment["REVIEW_SNAPSHOT"]
     }
 

@@ -16,10 +16,14 @@ final class AppModel {
     /// Opened pull requests, most recent first.
     private(set) var pullRequests: [PullRequestReference] = []
     var selection: PullRequestReference? {
-        didSet {
-            for (reference, session) in sessions { session.isSelectedInApp = reference == selection }
-        }
+        didSet { didChangeShownSession() }
     }
+    /// The browser fills the window instead of the selected pull request,
+    /// which stays selected underneath for when it closes.
+    private(set) var isBrowsing = false {
+        didSet { didChangeShownSession() }
+    }
+    let browser = PullRequestBrowser()
     private var sessions: [PullRequestReference: ReviewSession] = [:]
     private var startup: Task<Void, Never>?
 
@@ -52,6 +56,7 @@ final class AppModel {
                 self.services = services
                 restoreOpenPullRequests(from: services.workspace)
                 trackedRepositories = services.trackedRepositories.load().sorted()
+                browser.start(with: services, tracked: trackedRepositories)
                 fileOrders = services.fileOrders.load()
                 await checkTools()
                 await refresh()
@@ -63,6 +68,11 @@ final class AppModel {
     /// Startup plus whatever the launch options ask for.
     func start(applying options: LaunchOptions) async {
         await start()
+        if let scope = options.browseScope {
+            showBrowser()
+            if let scope { browser.scope = scope }
+            if let keywords = options.searchKeywords { browser.filter.keywords = keywords }
+        }
         guard let pullRequest = options.pullRequest, (try? open(pullRequest)) != nil, let selected = selectedSession else {
             if let snapshotPath = options.snapshotPath {
                 try? await Task.sleep(for: .seconds(4))
@@ -139,6 +149,7 @@ final class AppModel {
             }
         }
         selection = reference
+        isBrowsing = false
     }
 
     func close(_ reference: PullRequestReference) {
@@ -194,10 +205,35 @@ final class AppModel {
         moveOpenPullRequest(reference, by: -pullRequests.count)
     }
 
-    /// The sidebar's selection changed: an inbox item is opened on selection.
-    func didSelect(_ reference: PullRequestReference?) {
-        guard let reference, !pullRequests.contains(reference) else { return }
-        open(reference)
+    // MARK: The sidebar's selection
+
+    /// Browse, or the pull request on screen. Setting it to an inbox item
+    /// opens that pull request.
+    var sidebarSelection: SidebarItem? {
+        get { isBrowsing ? .browse : selection.map(SidebarItem.pullRequest) }
+        set {
+            switch newValue {
+            case .browse: showBrowser()
+            case .pullRequest(let reference): open(reference)
+            case nil: break
+            }
+        }
+    }
+
+    /// The selected pull request, unless the browser is covering it.
+    var shownSession: ReviewSession? {
+        isBrowsing ? nil : selectedSession
+    }
+
+    func showBrowser() {
+        isBrowsing = true
+    }
+
+    /// Notifications for Claude's answers hold back for the PR on screen.
+    private func didChangeShownSession() {
+        for (reference, session) in sessions {
+            session.isSelectedInApp = !isBrowsing && reference == selection
+        }
     }
 
     /// `review://open?pr=owner/repo%23123` — from `review open`, or a link.
@@ -254,7 +290,16 @@ final class AppModel {
     func refresh() async {
         async let inbox: Void = refreshInbox()
         async let summaries: Void = refreshSummaries(of: pullRequests)
-        _ = await (inbox, summaries)
+        async let browsed: Void = refreshBrowser()
+        _ = await (inbox, summaries, browsed)
+    }
+
+    /// Only when it is showing: otherwise it searches afresh when it is.
+    private func refreshBrowser() async {
+        guard isBrowsing else { return }
+        async let repositories: Void = browser.loadRepositories(force: true)
+        async let results: Void = browser.search(browser.query(tracked: trackedRepositories))
+        _ = await (repositories, results)
     }
 
     /// Failure leaves the last known statuses; the sidebar still works.
@@ -304,6 +349,7 @@ final class AppModel {
 
     private func didChangeTrackedRepositories() {
         try? services?.trackedRepositories.save(trackedRepositories)
+        browser.didChangeTrackedRepositories(trackedRepositories)
         Task { await refreshInbox() }
     }
 

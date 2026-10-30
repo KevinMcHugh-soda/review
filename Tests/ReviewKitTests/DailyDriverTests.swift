@@ -72,4 +72,20 @@ struct DailyDriverTests {
         try Data(#"["sodahealth/harmony", "not a repo"]"#.utf8).write(to: store.file)
         #expect(store.load() == [repositories[0]])
     }
+
+    @Test("Remembers the browser's scope and filter, and starts from defaults")
+    func browse() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("review-br-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = BrowseStore(root: root)
+        #expect(store.load() == BrowseStore.Saved())
+        let saved = BrowseStore.Saved(
+            scope: .repository(RepositoryName(owner: "sodahealth", name: "harmony")),
+            filter: PullRequestFilter(readiness: .draft, people: [PersonCondition(role: .author, login: "@me", isExcluded: true)])
+        )
+        try store.save(saved)
+        #expect(store.load() == saved)
+        try Data("not json".utf8).write(to: store.file)
+        #expect(store.load() == BrowseStore.Saved())
+    }
 }

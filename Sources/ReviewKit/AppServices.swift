@@ -69,6 +69,22 @@ public struct AppServices: Sendable {
         return try await GitHubClient(gh: gh, environment: environment.variables).summaries(of: references)
     }
 
+    public var browse: BrowseStore { BrowseStore(root: CheckoutStore.defaultRoot) }
+
+    /// One page of pull requests matching a GitHub search query; nil when gh
+    /// is missing.
+    public func searchPullRequests(_ query: String, after cursor: String? = nil) async throws -> PullRequestSearchPage? {
+        guard let gh = environment.locate(Tool.gh.executableName) else { return nil }
+        return try await GitHubClient(gh: gh, environment: environment.variables).searchPullRequests(query, after: cursor)
+    }
+
+    /// The repositories the reviewer can see, most recently pushed first; nil
+    /// when gh is missing.
+    public func repositories() async throws -> [RepositoryName]? {
+        guard let gh = environment.locate(Tool.gh.executableName) else { return nil }
+        return try await GitHubClient(gh: gh, environment: environment.variables).repositories()
+    }
+
     /// Nil when gh is missing.
     public var publisher: ReviewPublisher? {
         guard let gh = environment.locate(Tool.gh.executableName) else { return nil }

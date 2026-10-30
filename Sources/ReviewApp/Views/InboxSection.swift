@@ -13,7 +13,7 @@ struct InboxSection<Empty: View>: View {
         Section {
             ForEach(items) { item in
                 InboxRow(item: item)
-                    .tag(item.reference)
+                    .tag(SidebarItem.pullRequest(item.reference))
                     .contextMenu {
                         Link("Open on GitHub", destination: item.reference.webURL)
                     }

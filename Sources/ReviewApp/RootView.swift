@@ -12,7 +12,12 @@ struct RootView: View {
         @Bindable var model = model
 
         NavigationSplitView(columnVisibility: $columnVisibility) {
-            List(selection: $model.selection) {
+            List(selection: $model.sidebarSelection) {
+                Section {
+                    Label("Browse", systemImage: "magnifyingglass")
+                        .tag(SidebarItem.browse)
+                        .help("Search and filter pull requests (⇧⌘B)")
+                }
                 ForEach(shownStatuses, id: \.self) { status in
                     let group = model.pullRequests(with: status)
                     Section {
@@ -22,7 +27,7 @@ struct RootView: View {
                                 session: model.session(for: reference),
                                 summary: model.summaries[reference]
                             )
-                            .tag(reference)
+                            .tag(SidebarItem.pullRequest(reference))
                             .contextMenu { rowMenu(reference, in: group) }
                         }
                         // Drag to reorder within the group; the order is
@@ -61,7 +66,6 @@ struct RootView: View {
                     RefreshButton()
                 }
             }
-            .onChange(of: model.selection) { _, reference in model.didSelect(reference) }
             .navigationSplitViewColumnWidth(
                 min: Theme.sidebarMinWidth,
                 ideal: Theme.sidebarIdealWidth,
@@ -74,7 +78,14 @@ struct RootView: View {
                 ToolStatusFooter()
             }
         } content: {
-            if let session = model.selectedSession {
+            if model.isBrowsing {
+                BrowseScopesColumn()
+                    .navigationSplitViewColumnWidth(
+                        min: Theme.scopesMinWidth,
+                        ideal: Theme.scopesIdealWidth,
+                        max: Theme.scopesMaxWidth
+                    )
+            } else if let session = model.selectedSession {
                 FilesColumn(session: session)
                     .navigationSplitViewColumnWidth(
                         min: Theme.filesMinWidth,
@@ -92,7 +103,9 @@ struct RootView: View {
                 )
             }
         } detail: {
-            if let session = model.selectedSession {
+            if model.isBrowsing {
+                BrowseView()
+            } else if let session = model.selectedSession {
                 CodeDetail(session: session)
             } else {
                 Color.clear
@@ -102,7 +115,7 @@ struct RootView: View {
         // column never reached the window's title bar.
         .navigationTitle(title)
         .navigationSubtitle(subtitle)
-        .focusedSceneValue(\.reviewSession, model.selectedSession)
+        .focusedSceneValue(\.reviewSession, model.shownSession)
         .onOpenURL { model.handle($0) }
         .task {
             let options = LaunchOptions.current
@@ -133,11 +146,13 @@ struct RootView: View {
     }
 
     private var title: String {
+        if model.isBrowsing { return model.browser.scope.title }
         guard let session = model.selectedSession else { return "Review" }
         return session.review?.pullRequest.title ?? session.reference.description
     }
 
     private var subtitle: String {
+        if model.isBrowsing { return "Browse" }
         guard let session = model.selectedSession, let pullRequest = session.review?.pullRequest else { return "" }
         return "\(pullRequest.status.title) · \(session.reference) · \(pullRequest.author) · \(pullRequest.head.name) → \(pullRequest.base.name)"
     }
