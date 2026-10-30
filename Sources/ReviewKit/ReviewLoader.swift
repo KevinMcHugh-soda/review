@@ -30,12 +30,30 @@ public struct LoadedReview: Sendable {
     /// What merging into the base tip would produce, when the base has moved
     /// since the PR branched; nil when it has not, and head *is* the after-merge state.
     public let merge: GitClient.MergeResult?
+    /// Set when the files are only what changed since the reviewer last
+    /// viewed the PR, rather than everything the PR changes.
+    public let changesSince: ChangesSince?
+    /// What the files' base side is: the merge base, or for changes since
+    /// last viewed, the head the reviewer saw (perhaps replayed onto the
+    /// merge base). Drafts and posting still use `mergeBase`.
+    let diffBase: String
     let repository: URL
     let git: GitClient
 
+    /// Where "changes since last viewed" starts from.
+    public struct ChangesSince: Hashable, Sendable {
+        /// The head the reviewer last viewed.
+        public let commit: String
+        /// False when that head could not be replayed onto the current merge
+        /// base without conflicts, so the files also carry whatever the base
+        /// branch changed in them in between.
+        public let isExact: Bool
+    }
+
     init(
         pullRequest: PullRequest, mergeBase: String, baseTip: String, files: [FileDiff], generatedPaths: Set<String>,
-        merge: GitClient.MergeResult?, repository: URL, git: GitClient
+        merge: GitClient.MergeResult?, repository: URL, git: GitClient,
+        changesSince: ChangesSince? = nil, diffBase: String? = nil
     ) {
         self.pullRequest = pullRequest
         self.mergeBase = mergeBase
@@ -44,6 +62,8 @@ public struct LoadedReview: Sendable {
         diffOrder = files
         self.generatedPaths = generatedPaths
         self.merge = merge
+        self.changesSince = changesSince
+        self.diffBase = diffBase ?? mergeBase
         self.repository = repository
         self.git = git
     }
@@ -69,11 +89,45 @@ public struct LoadedReview: Sendable {
     public func text(of file: FileDiff, on side: Side) async throws -> String? {
         let (path, commit) =
             switch side {
-            case .base: (file.oldPath, mergeBase)
+            case .base: (file.oldPath, diffBase)
             case .head: (file.newPath, pullRequest.head.sha)
             }
         guard let path, let data = try await git.contents(of: path, at: commit, in: repository) else { return nil }
         return String(decoding: data, as: UTF8.self)
+    }
+
+    /// The same PR narrowed to what changed since the reviewer saw `commit`,
+    /// an earlier head — GitHub's "changes since last view".
+    ///
+    /// When the merge base is an ancestor of the old head, the author only
+    /// added commits (or rebased without the base moving), and old head →
+    /// head is exactly their change. When the base moved in between — a
+    /// rebase, or the base branch merged in — that diff would also show
+    /// everything the base branch did, so the old head is first replayed onto
+    /// the current merge base with `git merge-tree` and the diff starts from
+    /// that tree. If the replay conflicts, the plain diff is the fallback and
+    /// `ChangesSince.isExact` says so.
+    public func changes(since commit: String) async throws -> LoadedReview {
+        let from: String
+        let isExact: Bool
+        if try await git.mergeBase(mergeBase, commit, in: repository) == mergeBase {
+            (from, isExact) = (commit, true)
+        } else if case .clean(let tree) = try await git.mergeTree(base: mergeBase, head: commit, in: repository) {
+            (from, isExact) = (tree, true)
+        } else {
+            (from, isExact) = (commit, false)
+        }
+        let patch = try await git.diff(from: from, to: pullRequest.head.sha, in: repository)
+        let parsed = try UnifiedDiffParser.parse(patch)
+        let files = parsed.filter { !generatedPaths.contains($0.path) } + parsed.filter { generatedPaths.contains($0.path) }
+        // No after-merge text: whole-file mode shows head, marked with what
+        // changed since the old head.
+        return LoadedReview(
+            pullRequest: pullRequest, mergeBase: mergeBase, baseTip: baseTip, files: files, generatedPaths: generatedPaths,
+            merge: nil, repository: repository, git: git,
+            changesSince: ChangesSince(commit: commit, isExact: isExact), diffBase: from
+        )
+        .ordered(by: fileOrder)
     }
 
     /// A checkout of head for the language servers. Slow the first time for a
@@ -210,8 +264,11 @@ public struct ReviewLoader: Sendable {
         self.git = git
     }
 
+    /// - Parameter viewedHead: the head the reviewer last viewed, kept under
+    ///   a ref before the fetch moves the PR's own ref past it.
     public func load(
         _ reference: PullRequestReference,
+        viewedHead: String? = nil,
         progress: @Sendable (Step) -> Void = { _ in }
     ) async throws -> LoadedReview {
         progress(.fetchingMetadata)
@@ -219,12 +276,26 @@ public struct ReviewLoader: Sendable {
 
         if !checkouts.hasRepository(for: reference) { progress(.cloning) }
         let repository = try await checkouts.ensureRepository(for: reference)
+        if let viewedHead {
+            try? await checkouts.pin(viewedHead, as: CheckoutStore.viewedRef(reference.number), in: repository)
+        }
 
         progress(.fetching)
         try await checkouts.fetch(pullRequest, into: repository)
 
         progress(.diffing)
         return try await Self.review(of: pullRequest, in: repository, git: git)
+    }
+
+    /// `review` narrowed to what changed since the reviewer saw `commit`,
+    /// fetching that commit first if the clone lacks it. Nil when it is gone
+    /// from GitHub too.
+    public func changes(in review: LoadedReview, since commit: String) async throws -> LoadedReview? {
+        guard await checkouts.ensureCommit(commit, in: review.repository) else { return nil }
+        try await checkouts.pin(
+            commit, as: CheckoutStore.viewedRef(review.pullRequest.reference.number, isPrevious: true), in: review.repository
+        )
+        return try await review.changes(since: commit)
     }
 
     /// Everything after the fetch: the diff, which files are generated, and

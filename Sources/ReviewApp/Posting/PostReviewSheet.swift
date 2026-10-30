@@ -29,7 +29,7 @@ struct PostReviewSheet: View {
         .task(id: PlanInput(summary: summary, event: event, drafts: session.notes.drafts)) {
             // Debounced: the summary is typed into.
             try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled, let publisher = session.publisher, let review = session.review else { return }
+            guard !Task.isCancelled, let publisher = session.publisher, let review = session.pullRequestReview else { return }
             plan = await publisher.plan(session.notes.drafts, summary: summary, event: event, for: review)
         }
     }
@@ -151,7 +151,7 @@ struct PostReviewSheet: View {
     }
 
     private func checkPreflight() async {
-        guard let publisher = session.publisher, let review = session.review else {
+        guard let publisher = session.publisher, let review = session.pullRequestReview else {
             preflightError = "gh is not available."
             return
         }
@@ -164,7 +164,7 @@ struct PostReviewSheet: View {
     }
 
     private func post() async {
-        guard let plan, let publisher = session.publisher, let review = session.review else { return }
+        guard let plan, let publisher = session.publisher, let review = session.pullRequestReview else { return }
         isPosting = true
         postError = nil
         defer { isPosting = false }

@@ -85,6 +85,11 @@ extension ReviewSession {
         if rows.allSatisfy({ !document.rows.indices.contains($0) || !document.rows[$0].isCode }) {
             return "Select lines of code."
         }
+        // Removed lines here are the old head's, which GitHub cannot comment on.
+        if review?.changesSince != nil,
+           rows.allSatisfy({ !document.rows.indices.contains($0) || document.rows[$0].newLine == nil }) {
+            return "Comment on removed lines in All Changes: these are lines of the head you last viewed."
+        }
         return nil
     }
 
@@ -148,6 +153,9 @@ extension ReviewSession {
                     else if let file { (anchor.side == .head ? file.newPath : file.oldPath) == anchor.path }
                     else { false }
                 guard matchesFile, document.isNavigable(atRow: index) || anchor.side == .base else { continue }
+                // Changes since last viewed number removed lines in the old
+                // head, not the merge base the draft was written against.
+                if anchor.side == .base, review?.changesSince != nil { continue }
                 let line = anchor.side == .head ? row.newLine : (row.kind == .added ? nil : row.oldLine)
                 if let line, anchor.lines.contains(line) { rows[index] = draft.id }
             }
@@ -165,6 +173,12 @@ extension ReviewSession {
     func reveal(_ draft: DraftComment) {
         selectedDraftID = draft.id
         let anchor = draft.anchor
+        // Base lines are the merge base's, and only the whole PR's diff has
+        // them; a head line may be in a file that has not changed since.
+        if isShowingChangesSinceViewed,
+           anchor.side == .base || !files.contains(where: { $0.newPath == anchor.path }) {
+            isShowingChangesSinceViewed = false
+        }
         if anchor.side == .base, let file = files.first(where: { $0.oldPath == anchor.path }) {
             // Base lines exist only in the diff's removed and context rows.
             mode = .diff
@@ -215,7 +229,7 @@ extension ReviewSession {
             navigationMessage = problem
             return
         }
-        guard let assistant, let review, let worktree else { return }
+        guard let assistant, let review = pullRequestReview, let worktree else { return }
         let followUp = followUps[id]?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         let isFirst = draft.claudeSessionID == nil
         let question = followUp ?? (draft.body.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
@@ -251,7 +265,7 @@ extension ReviewSession {
             navigationMessage = problem
             return
         }
-        guard let assistant, let review, let worktree, !notes.drafts.isEmpty else { return }
+        guard let assistant, let review = pullRequestReview, let worktree, !notes.drafts.isEmpty else { return }
         let followUp = followUps[overviewID]?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         let session = notes.overviewSessionID
         if session != nil, followUp == nil { return }

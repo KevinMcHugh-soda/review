@@ -92,6 +92,40 @@ one GitHub has for the PR, or line comments land on the wrong lines.
 
 **Decided:** the diff is the default mode; after-merge is one click away.
 
+## "Changes since last view"
+
+GitHub's "changes since your last view", done locally. Each PR's notes keep
+`viewedHead` (the head when it was last opened) and `previousViewedHead` (the
+one seen before that). Opening a PR at a new head moves `viewedHead` into
+`previousViewedHead`; reopening the same head changes nothing, so the
+comparison holds until the next push rather than vanishing on relaunch. The
+file list then offers All Changes / Since Last View (⌘5).
+
+**The diff** (`LoadedReview.changes(since:)`) must show the author's change,
+not whatever the base branch did in between:
+
+- The merge base is an ancestor of the old head (commits were only added):
+  old head → head. Exact.
+- Otherwise the author rebased or merged the base in. Old head → head would
+  show all of the base's changes too, so the old head is replayed onto the
+  current merge base with `git merge-tree --write-tree <merge base> <old head>`
+  (its own merge base is the old branch point) and the diff starts from that
+  tree. git 2.39 has no `--merge-base`, but none is needed for this.
+- The replay conflicts: old head → head, flagged `isExact == false`, and the
+  bar says the base's changes may be mixed in.
+
+**Keeping the old head.** Once a push moves `refs/review/pull/<n>/head`, the
+old head is unreachable and `gc` may prune it. Before each fetch it is pinned
+at `refs/review/pull/<n>/viewed`, and the one compared against at
+`…/previously-viewed`. A clone made after the push fetches it by id; if
+GitHub no longer has it, the bar says so.
+
+**What stays on the whole PR.** Drafts anchor and posting places them against
+the merge-base diff, and Claude's prompts quote it, whichever is shown. So in
+Since Last View, removed lines (the old head's numbering) cannot take a draft,
+and base-side drafts and threads are not marked; revealing one switches back
+to All Changes. Whole-file mode shows head with no after-merge text.
+
 
 
 ## Untrusted code on disk

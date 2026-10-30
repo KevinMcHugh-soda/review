@@ -18,6 +18,8 @@ import ReviewKit
 /// - `--comment <start>[-<end>] --note <text> [--ask]` adds a draft on those
 ///   head-side lines, and with `--ask` asks Claude and waits for the answer.
 /// - `--inspector on` shows the drafts inspector: the description and threads.
+/// - `--since-last-view on` shows only the changes since the PR was last
+///   viewed, once they are worked out.
 /// - `--sidebar on` shows the sidebar, whatever the last launch left.
 /// - `--settings on` opens Settings; a snapshot writes it as `-settings.png`.
 /// - `--post-sheet` opens the Post Review sheet (it only plans; nothing is
@@ -42,6 +44,8 @@ struct LaunchOptions {
     let expansion: String?
     /// `--continuous on|off`: every file in one scroll, or one at a time.
     let continuous: Bool?
+    /// `--since-last-view on`: only the changes since last viewed.
+    let showsChangesSinceViewed: Bool
     let navigation: (action: NavigationAction, line: Int, column: Int)?
     let comment: (lines: ClosedRange<Int>, note: String, ask: Bool)?
     let opensPostSheet: Bool
@@ -64,6 +68,7 @@ struct LaunchOptions {
         filePath = value(after: "--file")
         mode = value(after: "--mode").flatMap(CodeDocument.Mode.init(rawValue:))
         continuous = value(after: "--continuous").map { $0 == "on" }
+        showsChangesSinceViewed = value(after: "--since-last-view") == "on"
         revealedLines = arguments.indices.filter { arguments[$0] == "--reveal" && arguments.indices.contains($0 + 1) }
             .compactMap { index in
                 let bounds = arguments[index + 1].split(separator: "-").compactMap { Int($0) }

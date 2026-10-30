@@ -142,15 +142,22 @@ public struct ReviewNotes: Codable, Hashable, Sendable {
     /// Files marked as viewed: path → the head blob id seen. A file whose
     /// content changes is unviewed again, as on GitHub.
     public var viewed: [String: String]
+    /// The PR's head when the reviewer last opened it.
+    public var viewedHead: String?
+    /// The head the reviewer had seen before `viewedHead` — what "changes
+    /// since last viewed" compares against. Nil until the PR first moves on.
+    public var previousViewedHead: String?
 
     public init(
         drafts: [DraftComment] = [], overview: [ConversationTurn] = [], overviewSessionID: String? = nil,
-        viewed: [String: String] = [:]
+        viewed: [String: String] = [:], viewedHead: String? = nil, previousViewedHead: String? = nil
     ) {
         self.drafts = drafts
         self.overview = overview
         self.overviewSessionID = overviewSessionID
         self.viewed = viewed
+        self.viewedHead = viewedHead
+        self.previousViewedHead = previousViewedHead
     }
 
     // Written out so files saved before a field existed still load.
@@ -160,5 +167,7 @@ public struct ReviewNotes: Codable, Hashable, Sendable {
         overview = try container.decodeIfPresent([ConversationTurn].self, forKey: .overview) ?? []
         overviewSessionID = try container.decodeIfPresent(String.self, forKey: .overviewSessionID)
         viewed = try container.decodeIfPresent([String: String].self, forKey: .viewed) ?? [:]
+        viewedHead = try container.decodeIfPresent(String.self, forKey: .viewedHead)
+        previousViewedHead = try container.decodeIfPresent(String.self, forKey: .previousViewedHead)
     }
 }

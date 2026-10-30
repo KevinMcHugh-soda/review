@@ -24,7 +24,10 @@ extension ReviewSession {
         var rows: [Int: String] = [:]
         for (index, row) in document.rows.enumerated() where row.isCode && document.isNavigable(atRow: index) {
             guard let file = file(atRow: index) else { continue }
-            for thread in current where (thread.side == .head ? file.newPath : file.oldPath) == thread.path {
+            // Base-side threads are on merge-base lines, which changes since
+            // last viewed does not show.
+            for thread in current where (thread.side == .head ? file.newPath : file.oldPath) == thread.path
+                && (thread.side == .head || review?.changesSince == nil) {
                 let line = thread.side == .head ? row.newLine : (row.kind == .added ? nil : row.oldLine)
                 if let line, thread.lines?.contains(line) == true { rows[index] = thread.id }
             }

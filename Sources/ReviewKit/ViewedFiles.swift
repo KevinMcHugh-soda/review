@@ -19,4 +19,14 @@ extension ReviewNotes {
     public mutating func setViewed(_ isViewed: Bool, _ file: FileDiff, headSHA: String) {
         viewed[file.path] = isViewed ? file.viewedKey(headSHA: headSHA) : nil
     }
+
+    /// Notes that the reviewer has opened the PR at `head`. A head they have
+    /// not seen before becomes the latest, and the one they had seen becomes
+    /// what "changes since last viewed" compares against — until the next
+    /// push, so reopening the same head keeps the comparison.
+    public mutating func recordView(ofHead head: String) {
+        guard head != viewedHead else { return }
+        if viewedHead != nil { previousViewedHead = viewedHead }
+        viewedHead = head
+    }
 }

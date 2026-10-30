@@ -35,6 +35,11 @@ struct ReviewCommands: Commands {
             }
             .keyboardShortcut("4", modifiers: .command)
             .disabled(session?.review == nil)
+            Button(session?.isShowingChangesSinceViewed == true ? "Show All Changes" : "Show Changes Since Last View") {
+                session?.isShowingChangesSinceViewed.toggle()
+            }
+            .keyboardShortcut("5", modifiers: .command)
+            .disabled(session?.canShowChangesSinceViewed != true)
             Divider()
             Button("Next Change") { session?.revealChange(offset: 1) }
                 .keyboardShortcut(.downArrow, modifiers: [.control, .command])

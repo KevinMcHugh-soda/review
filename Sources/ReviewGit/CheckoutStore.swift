@@ -93,6 +93,29 @@ public struct CheckoutStore: Sendable {
         }
     }
 
+    /// Where the heads the reviewer has viewed are kept — the latest, and
+    /// the one before it that "changes since last viewed" starts from — so
+    /// that once a push moves the PR's own ref past them, `git gc` cannot
+    /// take them.
+    public static func viewedRef(_ number: Int, isPrevious: Bool = false) -> String {
+        "refs/review/pull/\(number)/\(isPrevious ? "previously-viewed" : "viewed")"
+    }
+
+    /// Points `ref` at `sha`, if the clone has that commit.
+    public func pin(_ sha: String, as ref: String, in repository: URL) async throws {
+        guard await git.hasCommit(sha, in: repository) else { return }
+        try await git.run(["update-ref", ref, sha], in: repository)
+    }
+
+    /// Makes sure the clone has a commit, fetching it by id if not — say, a
+    /// head that was force-pushed away before this clone existed. False when
+    /// the remote no longer has it either.
+    public func ensureCommit(_ sha: String, in repository: URL) async -> Bool {
+        if await git.hasCommit(sha, in: repository) { return true }
+        _ = try? await git.run(["fetch", "--quiet", "--no-tags", "origin", sha], in: repository)
+        return await git.hasCommit(sha, in: repository)
+    }
+
     public func worktreePath(for reference: PullRequestReference) -> URL {
         root.appendingPathComponent("worktrees", isDirectory: true)
             .appendingPathComponent(reference.owner, isDirectory: true)

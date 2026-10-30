@@ -74,6 +74,7 @@ final class AppModel {
         if let mode = options.mode { selected.mode = mode }
         if let continuous = options.continuous { selected.isContinuous = continuous }
         if !selected.hasStarted { await load(selected) }
+        if options.showsChangesSinceViewed { await selected.scriptedShowChangesSinceViewed() }
         if let filePath = options.filePath {
             selected.selectedFilePath = filePath
             for lines in options.revealedLines { selected.revealedLines[filePath, default: []].insert(integersIn: lines) }

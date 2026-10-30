@@ -619,3 +619,22 @@ the card's snapshot from its last render, so it reads one keystroke behind.
 Handed older text than it holds, the editor replaces its contents, which puts
 the cursor at the end; typing at the end hid it. The editor now binds to
 `$session[bodyOf: id]`, which reads the session's copy.
+
+## Changes since last view
+
+All Changes / Since Last View above the file list (⌘5, `--since-last-view on`
+in a snapshot run), once a PR has gained commits since the reviewer last
+opened it. Rebases and merges of the base branch are replayed away with
+`git merge-tree`, so only the author's change shows. `review show <pr>
+--since <sha>` prints the same from the CLI. See plans/checkout-and-diff.md.
+
+**Verified:** `review show KevinMcHugh-soda/review#12 --since 9529b67` lists
+only PROGRESS.md, −1 — exactly the PR's second commit. Rendered both modes on
+review#12 with notes seeded to that commit. Tests cover added commits, a
+rebase (the base's new file is left out), and a conflicted replay (flagged).
+**Tests: 164.**
+
+**Not yet:** the comparison starts only after a PR has been opened once with
+this build. GitHub's own last-view state is not readable through its API; the
+commit of the reviewer's last submitted review could seed it.
+

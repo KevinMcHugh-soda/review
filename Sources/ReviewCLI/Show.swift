@@ -27,6 +27,9 @@ struct Show: AsyncParsableCommand {
     @Flag(help: "Print every file in one document, as the all-files view shows it.")
     var all = false
 
+    @Option(help: "Show only what changed since this earlier head, as Since Last View does.")
+    var since: String?
+
     func run() async throws {
         let reference = try PullRequestReference(parsing: pullRequest)
         let services = await AppServices.start()
@@ -35,10 +38,16 @@ struct Show: AsyncParsableCommand {
         }
 
         let started = ContinuousClock.now
-        let review = try await loader.load(reference) { step in
+        var review = try await loader.load(reference) { step in
             FileHandle.standardError.write(Data("→ \(step.rawValue)…\n".utf8))
         }
         .ordered(by: services.fileOrders.order(for: reference.repositorySlug))
+        if let since {
+            guard let changes = try await loader.changes(in: review, since: since) else {
+                throw ValidationError("\(since) is not on GitHub any more.")
+            }
+            review = changes
+        }
         let elapsed = ContinuousClock.now - started
 
         if all {
@@ -68,6 +77,9 @@ struct Show: AsyncParsableCommand {
         case .conflicted: "conflicts"
         }
         print("base tip \(review.baseTip.prefix(12)) · \(merge)")
+        if let since = review.changesSince {
+            print("changes since \(since.commit.prefix(12))\(since.isExact ? "" : " · may include the base branch's changes")")
+        }
         print()
         for file in review.files {
             let status =

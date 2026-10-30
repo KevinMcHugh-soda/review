@@ -32,8 +32,24 @@ final class ReviewSession {
         case unavailable(String)
     }
 
+    /// What changed since the reviewer last viewed the PR, when it has
+    /// moved on since.
+    enum ChangesSinceViewed {
+        case loading
+        case loaded(LoadedReview)
+        /// The old head is gone — force-pushed away, and GitHub no longer
+        /// has it either — or the diff failed.
+        case unavailable(String)
+    }
+
     let reference: PullRequestReference
     private(set) var phase: Phase = .loading(nil)
+    /// Nil when the PR has not moved since the reviewer last viewed it.
+    private(set) var changesSinceViewed: ChangesSinceViewed?
+    /// Shows only the changes since last viewed, rather than the whole PR.
+    var isShowingChangesSinceViewed = false {
+        didSet { didChangeScope(from: oldValue) }
+    }
     private(set) var documentState: DocumentState = .idle
 
     /// Whether `load` has ever run, so re-selecting the PR does not refetch.
@@ -130,8 +146,21 @@ final class ReviewSession {
         self.reference = reference
     }
 
+    /// What the file list and the viewer show: the whole PR, or only the
+    /// changes since last viewed.
     var review: LoadedReview? {
+        if isShowingChangesSinceViewed, case .loaded(let since) = changesSinceViewed { return since }
+        return pullRequestReview
+    }
+
+    /// The whole PR, whatever is being shown — what posting places drafts in.
+    var pullRequestReview: LoadedReview? {
         if case .loaded(let review) = phase { review } else { nil }
+    }
+
+    /// Changes since last viewed are ready to show.
+    var canShowChangesSinceViewed: Bool {
+        if case .loaded = changesSinceViewed { true } else { false }
     }
 
     var files: [FileDiff] { review?.files ?? [] }
@@ -177,9 +206,10 @@ final class ReviewSession {
     var scrollKey: String? {
         guard let review else { return nil }
         if let externalFile { return "external:\(externalFile.path)" }
-        if isContinuous { return "all:\(review.pullRequest.head.sha):\(mode.rawValue):\(review.fileOrder.rules)" }
+        let scope = review.changesSince.map { "since-\($0.commit):" } ?? ""
+        if isContinuous { return "all:\(scope)\(review.pullRequest.head.sha):\(mode.rawValue):\(review.fileOrder.rules)" }
         guard let selectedFilePath else { return nil }
-        return "\(review.pullRequest.head.sha):\(selectedFilePath):\(mode.rawValue)"
+        return "\(scope)\(review.pullRequest.head.sha):\(selectedFilePath):\(mode.rawValue)"
     }
 
     /// The PR file a row of the current document belongs to: the row's own in
@@ -226,6 +256,16 @@ final class ReviewSession {
         expandGap(atRow: target.row, lines: target.lines)
     }
 
+    /// For launch options: once the changes since last viewed are worked
+    /// out, shows them.
+    func scriptedShowChangesSinceViewed() async {
+        let deadline = ContinuousClock.now + .seconds(30)
+        while ContinuousClock.now < deadline, case .loading = changesSinceViewed ?? .loading {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        isShowingChangesSinceViewed = canShowChangesSinceViewed
+    }
+
     /// Clicking a file's header folds or unfolds it.
     func toggleFile(atRow row: Int) {
         guard let path = file(atRow: row)?.path else { return }
@@ -250,10 +290,12 @@ final class ReviewSession {
         phase = .loading(nil)
         documents = [:]
         do {
-            let review = try await loader.load(reference) { step in
+            let review = try await loader.load(reference, viewedHead: notes.viewedHead) { step in
                 Task { @MainActor in self.didReach(step) }
             }
             .ordered(by: fileOrder)
+            changesSinceViewed = nil
+            isShowingChangesSinceViewed = false
             phase = .loaded(review)
             if selectedFilePath == nil || selectedFile == nil {
                 selectedFilePath = review.files.first?.path
@@ -263,17 +305,44 @@ final class ReviewSession {
                 pendingReveal = Reveal(headerOf: index)
             }
             Task { await loadThreads() }
+            Task { await compareWithLastView(review, loader: loader) }
             await prepareNavigation(review, checkouts: loader.checkouts, environment: environment)
         } catch {
             phase = .failed("\(error)")
         }
     }
 
+    /// Records this view of the PR, and if it has moved on since the last
+    /// one, works out what changed in between.
+    private func compareWithLastView(_ review: LoadedReview, loader: ReviewLoader) async {
+        notes.recordView(ofHead: review.pullRequest.head.sha)
+        scheduleSave()
+        guard let since = notes.previousViewedHead else { return }
+        changesSinceViewed = .loading
+        do {
+            changesSinceViewed =
+                if let changes = try await loader.changes(in: review, since: since) { .loaded(changes) }
+                else { .unavailable("The commit you last viewed, \(since.prefix(7)), is no longer on GitHub.") }
+        } catch {
+            changesSinceViewed = .unavailable("Couldn't compare with the commit you last viewed: \(error)")
+        }
+    }
+
+    /// Keeps a file selected when switching between the whole PR and the
+    /// changes since last viewed: the same one if it is in both, else the
+    /// first.
+    private func didChangeScope(from oldValue: Bool) {
+        guard isShowingChangesSinceViewed != oldValue else { return }
+        if externalFile == nil, selectedFile == nil { selectedFilePath = files.first?.path }
+        if let index = selectedFileIndex { pendingReveal = Reveal(headerOf: index) }
+    }
+
     /// Rearranges the files in place; in the all-files view, the scroll
     /// stays on the selected file's header.
     private func didChangeFileOrder(from oldValue: FileOrder) {
-        guard fileOrder != oldValue, let review else { return }
+        guard fileOrder != oldValue, let review = pullRequestReview else { return }
         phase = .loaded(review.ordered(by: fileOrder))
+        if case .loaded(let since) = changesSinceViewed { changesSinceViewed = .loaded(since.ordered(by: fileOrder)) }
         if let index = selectedFileIndex { pendingReveal = Reveal(headerOf: index) }
     }
 

@@ -26,7 +26,9 @@ struct FilesColumn: View {
                     Task { await model.load(session) }
                 }
             }
-        case .loaded(let review):
+        case .loaded(let whole):
+            // The whole PR, or only what changed since the last view.
+            let review = session.review ?? whole
             List(review.files, selection: $session.selectedFilePath) { file in
                 FileRow(file: file, isGenerated: review.generatedPaths.contains(file.path), isViewed: Binding(
                     get: { session.isViewed(file) },
@@ -37,7 +39,15 @@ struct FilesColumn: View {
             }
             .overlay {
                 if review.files.isEmpty {
-                    ContentUnavailableView("No Changes", systemImage: "checkmark.circle")
+                    ContentUnavailableView(
+                        review.changesSince == nil ? "No Changes" : "No Changes Since Your Last View",
+                        systemImage: "checkmark.circle"
+                    )
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if let changes = session.changesSinceViewed {
+                    ChangesSinceViewedBar(session: session, changes: changes)
                 }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {

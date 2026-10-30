@@ -44,8 +44,13 @@ struct FileHeader: View {
     }
 
     private var note: String {
-        if session.externalFile != nil {
-            return isInsideCheckout ? "Not changed in this PR" : "Outside the repository"
+        if let external = session.externalFile {
+            guard isInsideCheckout else { return "Outside the repository" }
+            let path = session.displayPath(for: external)
+            if session.review?.changesSince != nil, session.pullRequestReview?.files.contains(where: { $0.newPath == path }) == true {
+                return "Not changed since your last view"
+            }
+            return "Not changed in this PR"
         }
         guard let file = session.selectedFile else { return "" }
         return switch file.status {
