@@ -417,8 +417,9 @@ unlisted files go, so `cmd` can be put last. The most specific listed
 directory wins; ties keep git's order; generated files stay last. A file's
 context menu has Show First / Show Last for each of its directories, and Edit
 File Order…. The file list, the all-files scroll, ⌥⌘↑/↓ and `review show` all
-follow it. Stored in `file-order.json` beside the other stores. See
-plans/file-order.md.
+follow it. Stored in `file-order.json` beside the other stores. Rules take
+wildcards — `internal/*/*.yaml` for Harmony's hand-written API specs, `**` across
+directories. See plans/file-order.md.
 
 ## What next
 

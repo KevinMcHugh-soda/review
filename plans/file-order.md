@@ -7,12 +7,19 @@ repository.
 
 ## Rules
 
-`FileOrder` (ReviewKit) is an ordered list of directories (or single files),
-plus at most one `*` — everything else.
+`FileOrder` (ReviewKit) is an ordered list of directories, files or
+patterns, plus at most one `*` on its own — everything else.
 
-* A file takes the position of the **longest** listed directory that holds
-  it, matched on whole path components (`db` holds `db/x.sql`, not
-  `dbtools/x.go`). So `pkg/admin` can be listed before a broader `pkg`.
+* Rules match on whole path components (`db` holds `db/x.sql`, not
+  `dbtools/x.go`), and a rule holds everything beneath what it matches.
+* Wildcards: `*`, `?` and `[…]` within one component (`fnmatch`), `**` for
+  any number of components. Harmony's `internal/` is generated except its
+  hand-written API specs, so `internal/*/*.yaml` puts those first and leaves
+  the rest of `internal` where it was. `**/*.sql` catches every query file.
+* A file takes the position of the **most specific** rule that holds it:
+  more components (not counting `**`), then more literal characters. So
+  `pkg/admin` can be listed before a broader `pkg`, and `internal/*/*.yaml`
+  beats `internal/*/*`.
 * A file under none of them goes where `*` is, or last without one.
 * Ties keep git's order — alphabetical.
 * Generated files stay last whatever the rules say, as on GitHub.
