@@ -32,7 +32,7 @@ struct ReviewApp: App {
         }
 
         Settings {
-            RepositoriesSettings()
+            SettingsView()
                 .environment(model)
                 .task { await model.start() }
         }

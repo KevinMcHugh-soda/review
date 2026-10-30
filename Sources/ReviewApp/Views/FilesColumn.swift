@@ -33,6 +33,7 @@ struct FilesColumn: View {
                     set: { session.setViewed($0, file) }
                 ))
                 .tag(file.path)
+                .contextMenu { FileOrderMenu(path: file.path, reference: session.reference) }
             }
             .overlay {
                 if review.files.isEmpty {

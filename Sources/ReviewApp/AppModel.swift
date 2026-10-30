@@ -35,6 +35,10 @@ final class AppModel {
     private(set) var inboxError: String?
     private var isInboxStale = false
 
+    /// The reviewer's file order for each repository, by lowercased
+    /// `owner/repo`; see `FileOrder`.
+    private(set) var fileOrders: [String: FileOrder] = [:]
+
     /// Title and status of every open PR, fetched together so the sidebar can
     /// group them before each is loaded.
     private(set) var summaries: [PullRequestReference: PullRequestSummary] = [:]
@@ -48,6 +52,7 @@ final class AppModel {
                 self.services = services
                 restoreOpenPullRequests(from: services.workspace)
                 trackedRepositories = services.trackedRepositories.load().sorted()
+                fileOrders = services.fileOrders.load()
                 await checkTools()
                 await refresh()
             }
@@ -320,6 +325,30 @@ final class AppModel {
             session.fail("git or gh is missing — see the tool status in the sidebar.")
             return
         }
+        session.fileOrder = fileOrder(for: session.reference.repositorySlug)
         await session.load(with: loader, services: services)
+    }
+
+    // MARK: File order
+
+    func fileOrder(for repository: String) -> FileOrder {
+        fileOrders[FileOrderStore.key(repository)] ?? FileOrder()
+    }
+
+    /// Saves a repository's order and rearranges its open pull requests.
+    func setFileOrder(_ order: FileOrder, for repository: String) {
+        let key = FileOrderStore.key(repository)
+        fileOrders[key] = order
+        try? services?.fileOrders.save(fileOrders)
+        for (reference, session) in sessions where FileOrderStore.key(reference.repositorySlug) == key {
+            session.fileOrder = order
+        }
+    }
+
+    /// Repositories worth ordering: tracked, open, or ordered already —
+    /// lowercased `owner/repo`, alphabetically.
+    var orderableRepositories: [String] {
+        let names = trackedRepositories.map(\.description) + pullRequests.map(\.repositorySlug) + Array(fileOrders.keys)
+        return Set(names.map(FileOrderStore.key)).sorted()
     }
 }

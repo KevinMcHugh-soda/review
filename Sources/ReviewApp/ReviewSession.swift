@@ -68,6 +68,11 @@ final class ReviewSession {
     /// Head lines the reviewer has shown out of the gaps between hunks, by
     /// file.
     var revealedLines: [String: IndexSet] = [:]
+    /// The reviewer's order for this repository's files; `AppModel` keeps it
+    /// in step with Settings.
+    var fileOrder = FileOrder() {
+        didSet { didChangeFileOrder(from: oldValue) }
+    }
 
     // Navigation state; see ReviewSession+Navigation.swift.
     var navigationState: NavigationState = .preparing
@@ -172,7 +177,7 @@ final class ReviewSession {
     var scrollKey: String? {
         guard let review else { return nil }
         if let externalFile { return "external:\(externalFile.path)" }
-        if isContinuous { return "all:\(review.pullRequest.head.sha):\(mode.rawValue)" }
+        if isContinuous { return "all:\(review.pullRequest.head.sha):\(mode.rawValue):\(review.fileOrder.rules)" }
         guard let selectedFilePath else { return nil }
         return "\(review.pullRequest.head.sha):\(selectedFilePath):\(mode.rawValue)"
     }
@@ -248,6 +253,7 @@ final class ReviewSession {
             let review = try await loader.load(reference) { step in
                 Task { @MainActor in self.didReach(step) }
             }
+            .ordered(by: fileOrder)
             phase = .loaded(review)
             if selectedFilePath == nil || selectedFile == nil {
                 selectedFilePath = review.files.first?.path
@@ -261,6 +267,14 @@ final class ReviewSession {
         } catch {
             phase = .failed("\(error)")
         }
+    }
+
+    /// Rearranges the files in place; in the all-files view, the scroll
+    /// stays on the selected file's header.
+    private func didChangeFileOrder(from oldValue: FileOrder) {
+        guard fileOrder != oldValue, let review else { return }
+        phase = .loaded(review.ordered(by: fileOrder))
+        if let index = selectedFileIndex { pendingReveal = Reveal(headerOf: index) }
     }
 
     func fail(_ message: String) {
