@@ -78,7 +78,7 @@ struct Show: AsyncParsableCommand {
         }
         print("base tip \(review.baseTip.prefix(12)) · \(merge)")
         if let since = review.changesSince {
-            print("changes since \(since.commit.prefix(12))\(since.isExact ? "" : " · may include the base branch's changes")")
+            print("changes since \(since.commit.prefix(12))\(since.wholeChangePaths.isEmpty ? "" : " · whole change, conflicted with the base: \(since.wholeChangePaths.joined(separator: ", "))")")
         }
         print()
         for file in review.files {

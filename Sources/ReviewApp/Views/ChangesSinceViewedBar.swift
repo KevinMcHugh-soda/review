@@ -34,13 +34,22 @@ struct ChangesSinceViewedBar: View {
         case .loading:
             "New commits since your last view. Comparing…"
         case .loaded(let review):
-            if let since = review.changesSince, !since.isExact {
-                "Since \(since.commit.prefix(7)). May include \(review.pullRequest.base.name)'s changes: the author brought them in with conflicts."
+            if let since = review.changesSince, !since.wholeChangePaths.isEmpty {
+                "Since \(since.commit.prefix(7)), leaving out \(review.pullRequest.base.name)'s changes. \(conflictNote(since.wholeChangePaths))"
             } else {
                 "What changed after you viewed it at \(review.changesSince?.commit.prefix(7) ?? "")."
             }
         case .unavailable(let message):
             message
+        }
+    }
+
+    /// Names the files shown whole because the old view would not replay onto the new base.
+    private func conflictNote(_ paths: [String]) -> String {
+        if let only = paths.first, paths.count == 1 {
+            "\(only.split(separator: "/").last ?? "") conflicted, so it shows its whole change."
+        } else {
+            "\(paths.count) conflicted files show their whole change."
         }
     }
 }
