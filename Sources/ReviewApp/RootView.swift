@@ -7,6 +7,7 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.openSettings) private var openSettings
     @State private var columnVisibility = NavigationSplitViewVisibility.automatic
+    @AppStorage(InboxItem.includesTeamRequestsKey) private var includesTeamRequests = true
 
     var body: some View {
         @Bindable var model = model
@@ -42,7 +43,7 @@ struct RootView: View {
                         GroupHeader(status: status, count: group.count)
                     }
                 }
-                InboxSection(title: "Waiting on You", items: model.waitingInbox) {
+                InboxSection(title: "Waiting on You", items: model.waitingInbox(includingTeamRequests: includesTeamRequests)) {
                     if let error = model.inboxError {
                         Text(error).lineLimit(3)
                     } else if model.trackedRepositories.isEmpty {

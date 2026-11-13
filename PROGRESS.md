@@ -867,3 +867,19 @@ the clip view, and since macOS 14 views do not clip to their bounds by default.
 `LineNumberGutter` now sets `clipsToBounds`. Checked by snapshot with the view
 scrolled to leave a row straddling the top: before, its numbers overhung the
 header; after, they are cut at the same edge as the text.
+
+## Waiting on You: team requests are a setting
+
+GitHub's `review-requested:@me` matches requests to any team the reviewer is
+on, so Waiting on You listed PRs where they were not a reviewer by name. A
+new switch, Settings › Repositories › **Include reviews requested from your
+teams** (`inboxIncludesTeamRequests`, on by default), decides whether a
+team-only request belongs there; asked by name or assigned always does, and
+the reviewer's own PRs never do (`InboxItem.isWaitingOnReviewer`). The inbox
+still fetches team requests either way, so flipping it needs no refresh.
+**Tests: 260** (the two `TypeScriptServerTests` failures predate this and
+fail on `main` too).
+
+Toolchain note: with Command Line Tools at Swift 6.3.3, `swift test` cannot
+find `Testing`. This runs it:
+`D=/Library/Developer/CommandLineTools/Library/Developer; swift test -Xswiftc -F$D/Frameworks -Xlinker -F$D/Frameworks -Xlinker -rpath -Xlinker $D/Frameworks -Xlinker -rpath -Xlinker $D/usr/lib`

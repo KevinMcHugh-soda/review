@@ -8,6 +8,7 @@ struct RepositoriesSettings: View {
     @State private var selection: Set<RepositoryName> = []
     @State private var text = ""
     @State private var isInvalid = false
+    @AppStorage(InboxItem.includesTeamRequestsKey) private var includesTeamRequests = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: Theme.spacing) {
@@ -49,6 +50,11 @@ struct RepositoriesSettings: View {
                 .foregroundStyle(.red)
                 .opacity(isInvalid ? 1 : 0)
                 .accessibilityHidden(!isInvalid)
+
+            Toggle(isOn: $includesTeamRequests) {
+                Text("Include reviews requested from your teams")
+                Text("Off, Waiting on You shows only pull requests that ask for you by name or assign you.")
+            }
         }
         .padding(Theme.sheetPadding)
         .frame(width: Theme.settingsWidth, height: Theme.settingsHeight)

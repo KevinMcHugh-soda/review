@@ -29,6 +29,18 @@ public struct InboxItem: Hashable, Sendable, Identifiable, Codable {
     /// The reviewer's own pull requests go in their own section.
     public var isAuthored: Bool { reasons.contains(.authored) }
 
+    /// The `UserDefaults` key for whether team requests wait on the reviewer.
+    public static let includesTeamRequestsKey = "inboxIncludesTeamRequests"
+
+    /// Belongs in "Waiting on You": asked by name or assigned, or — when the
+    /// reviewer wants them — asked through one of their teams.
+    public func isWaitingOnReviewer(includingTeamRequests: Bool) -> Bool {
+        guard !isAuthored else { return false }
+        return reasons.contains(.reviewRequested)
+            || reasons.contains(.assigned)
+            || (includingTeamRequests && reasons.contains(.teamReviewRequested))
+    }
+
     public init(
         reference: PullRequestReference,
         title: String,

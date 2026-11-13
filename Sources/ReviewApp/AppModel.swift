@@ -375,10 +375,13 @@ final class AppModel {
 
     // MARK: Inbox
 
-    /// Asked to review or assigned, and not the reviewer's own, for the
-    /// sidebar's "Waiting on You". PRs already open are in their status group.
-    var waitingInbox: [InboxItem] {
-        inbox.filter { !$0.isAuthored && !pullRequests.contains($0.reference) }
+    /// For the sidebar's "Waiting on You". PRs already open are in their
+    /// status group.
+    func waitingInbox(includingTeamRequests: Bool) -> [InboxItem] {
+        inbox.filter {
+            $0.isWaitingOnReviewer(includingTeamRequests: includingTeamRequests)
+                && !pullRequests.contains($0.reference)
+        }
     }
 
     /// The reviewer's own open pull requests, not already open here.

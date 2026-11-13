@@ -26,7 +26,9 @@ With none tracked, the searches cover every repository — the old behaviour.
 qualifiers, so each reason is one search however many repositories there are.
 `--review-requested` includes requests to a team the reviewer is on. A PR that
 turns up in two searches (assigned and asked to review) is one item with both
-reasons; a PR the reviewer wrote goes to Your Pull Requests whatever else it
+reasons. A team-only request shows in Waiting on You only while Settings ›
+Repositories › Include reviews requested from your teams is on (the default);
+a PR the reviewer wrote goes to Your Pull Requests whatever else it
 matched. PRs already open in the sidebar are left out of both sections — they
 are in their status group.
 
