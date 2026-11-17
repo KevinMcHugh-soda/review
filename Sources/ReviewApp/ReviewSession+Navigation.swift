@@ -11,19 +11,71 @@ extension ReviewSession {
     /// index while the reviewer reads.
     func prepareNavigation(_ review: LoadedReview, checkouts: CheckoutStore, environment: ToolEnvironment) async {
         navigationState = .preparing
+        // A reload checks out again; the old servers would otherwise run on.
+        if let previous = navigator {
+            navigator = nil
+            serverStatus = [:]
+            await previous.shutdown()
+        }
         do {
             let worktree = try await review.checkOut(using: checkouts)
             let navigator = Navigator(root: worktree, environment: environment)
             self.worktree = worktree
             self.navigator = navigator
-            await navigator.warmUp(paths: review.files.compactMap(\.newPath))
+            await startServers(on: navigator, for: review)
             navigationState = .ready
-            for kind in await navigator.startedKinds {
-                Task { await follow(kind, on: navigator) }
-            }
         } catch {
             navigationState = .unavailable("The checkout failed: \(error)")
         }
+    }
+
+    private func startServers(on navigator: Navigator, for review: LoadedReview) async {
+        areServersStopped = false
+        await navigator.warmUp(paths: review.files.compactMap(\.newPath))
+        for kind in await navigator.startedKinds {
+            Task { await follow(kind, on: navigator) }
+        }
+        // Loaded while off screen, perhaps after its idle timer already ran.
+        if !isSelectedInApp, idleShutdown == nil { scheduleIdleShutdown() }
+    }
+
+    // MARK: Servers for PRs off screen
+
+    /// How long a PR's servers outlive it leaving the screen. Long enough to
+    /// glance at another PR and come back without re-indexing; short enough
+    /// that a sidebar full of PRs isn't a gopls each.
+    static let offScreenServerLifetime = Duration.seconds(5 * 60)
+
+    func didChangeSelectionInApp() {
+        if isSelectedInApp {
+            idleShutdown?.cancel()
+            idleShutdown = nil
+            Task { await restartStoppedServers() }
+        } else {
+            scheduleIdleShutdown()
+        }
+    }
+
+    private func scheduleIdleShutdown() {
+        idleShutdown?.cancel()
+        idleShutdown = Task { [weak self] in
+            try? await Task.sleep(for: Self.offScreenServerLifetime)
+            guard !Task.isCancelled else { return }
+            await self?.stopServersOffScreen()
+        }
+    }
+
+    private func stopServersOffScreen() async {
+        idleShutdown = nil
+        guard !isSelectedInApp, let navigator, !areServersStopped else { return }
+        areServersStopped = true
+        serverStatus = [:]
+        await navigator.shutdown()
+    }
+
+    private func restartStoppedServers() async {
+        guard areServersStopped, let navigator, let review else { return }
+        await startServers(on: navigator, for: review)
     }
 
     private func follow(_ kind: ServerKind, on navigator: Navigator) async {

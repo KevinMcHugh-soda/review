@@ -101,6 +101,11 @@ final class ReviewSession {
     var navigator: Navigator?
     var worktree: URL?
     var serverStatus: [ServerKind: LanguageServer.Status] = [:]
+    /// Stops the servers once the PR has been off screen for a while.
+    @ObservationIgnored var idleShutdown: Task<Void, Never>?
+    /// The servers were stopped while the PR was off screen; they start
+    /// again when it comes back.
+    @ObservationIgnored var areServersStopped = false
     var cursor: Cursor?
     var pendingReveal: Reveal?
     var results: NavigationResults?
@@ -143,7 +148,11 @@ final class ReviewSession {
     }
     var isPostSheetShown = false
     /// Whether this is the PR the window shows; kept by `AppModel`.
-    var isSelectedInApp = false
+    var isSelectedInApp = false {
+        didSet {
+            if isSelectedInApp != oldValue { didChangeSelectionInApp() }
+        }
+    }
     /// Records and shows a notification; set by `AppModel`.
     var deliverNotification: ((NotificationRecord) -> Void)?
 
@@ -411,6 +420,7 @@ final class ReviewSession {
 
     func close() async {
         for task in askTasks.values { task.cancel() }
+        idleShutdown?.cancel()
         saveNotesNow()
         await navigator?.shutdown()
         navigator = nil

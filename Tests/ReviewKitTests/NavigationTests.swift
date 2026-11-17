@@ -51,6 +51,26 @@ struct NavigationTests {
         #expect(try await navigator.callers(of: callers).map(\.name) == ["main"])
     }
 
+    @Test("Starts a fresh server for the next request after shutting down",
+          .enabled(if: GoFixture.hasGopls))
+    func restartsAfterShutdown() async throws {
+        let fixture = try await GoFixture.make()
+        defer { fixture.remove() }
+        let review = try await fixture.load()
+        let worktree = try await review.checkOut(using: fixture.checkouts)
+        let navigator = Navigator(root: worktree, environment: await GoFixture.environment.value)
+        defer { Task { await navigator.shutdown() } }
+
+        await navigator.warmUp(paths: ["main.go"])
+        #expect(await navigator.startedKinds == [.go])
+        await navigator.shutdown()
+        #expect(await navigator.startedKinds.isEmpty)
+
+        let found = try await navigator.definition(path: "shapes/describe.go", line: 3, column: 5)
+        #expect(found.first?.path(relativeTo: worktree) == "shapes/describe.go")
+        #expect(await navigator.startedKinds == [.go])
+    }
+
     @Test("Shows the whole file as it will be after merging into a base that moved")
     func afterMerge() async throws {
         let fixture = try await GoFixture.make(baseAlsoEditsMain: true)

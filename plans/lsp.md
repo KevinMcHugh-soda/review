@@ -24,7 +24,11 @@ machine**, where TS 7 always wins.
 One server process per **(worktree, language)**. A PR that touches Go and
 TypeScript in a monorepo gets two; the after-merge worktree gets its own.
 Servers start lazily, the first time a file in that language is opened, and
-stop when the PR is closed.
+stop when the PR is closed — or five minutes after it leaves the screen
+(another PR selected, or the browser open), so a sidebar of open PRs is not a
+gopls each; they start again when it comes back
+(`ReviewSession.offScreenServerLifetime`). Reloading a PR stops its old
+servers before checking out again.
 
 ## A hand-written client, not a dependency ✅
 
