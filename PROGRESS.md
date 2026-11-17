@@ -889,3 +889,16 @@ fail on `main` too).
 Toolchain note: with Command Line Tools at Swift 6.3.3, `swift test` cannot
 find `Testing`. This runs it:
 `D=/Library/Developer/CommandLineTools/Library/Developer; swift test -Xswiftc -F$D/Frameworks -Xlinker -F$D/Frameworks -Xlinker -rpath -Xlinker $D/Frameworks -Xlinker -rpath -Xlinker $D/usr/lib`
+
+## Fix: language servers piling up
+
+Every opened PR kept its gopls (and typescript-language-server) until it was
+closed in the sidebar, and each PR has its own checkout, so five open harmony
+PRs meant five gopls indexing the same monorepo, which macOS reported as
+Review using significant energy. A PR's servers now stop five minutes after it
+leaves the screen and start again, re-indexing, when it is selected
+(`ReviewSession+Navigation.swift`). Reloading a PR also leaked its old
+servers; `prepareNavigation` now stops them first. `Navigator.shutdown`
+forgets its servers before awaiting them, so a restart that interleaves with
+a stop is not dropped unstopped. New test: a navigator answers after
+`shutdown` with a fresh server.

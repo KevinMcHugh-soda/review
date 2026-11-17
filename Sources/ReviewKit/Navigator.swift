@@ -44,11 +44,16 @@ public actor Navigator {
 
     public var startedKinds: [ServerKind] { ServerKind.allCases.filter { servers[$0] != nil } }
 
+    /// Stops every server. The navigator stays usable: the next request or
+    /// `warmUp` starts a fresh server for its language.
     public func shutdown() async {
-        for task in servers.values {
+        // Forgotten before the first await, so a `warmUp` that interleaves
+        // starts new servers rather than having them dropped unstopped.
+        let stopping = servers.values
+        servers.removeAll()
+        for task in stopping {
             await (try? task.value)?.shutdown()
         }
-        servers.removeAll()
     }
 
     // MARK: Requests
