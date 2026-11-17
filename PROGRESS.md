@@ -462,10 +462,16 @@ opened it. Rebases and merges of the base branch are replayed away with
 `git merge-tree`, so only the author's change shows. `review show <pr>
 --since <sha>` prints the same from the CLI. See plans/checkout-and-diff.md.
 
+A merge of the base with conflicts used to fall back to old head → head,
+mixing in everything the base did. Now only the conflicted files fall back,
+and to their whole change (from the merge base); every other file still shows
+just what the author changed, and nothing from the base shows.
+
 **Verified:** `review show KevinMcHugh-soda/review#12 --since 9529b67` lists
 only PROGRESS.md, −1 — exactly the PR's second commit. Rendered both modes on
 review#12 with notes seeded to that commit. Tests cover added commits, a
-rebase (the base's new file is left out), and a conflicted replay (flagged).
+rebase (the base's new file is left out), and a conflicted replay (the
+conflicted file shown whole, the base's file left out).
 **Tests: 164.**
 
 **Not yet:** the comparison starts only after a PR has been opened once with

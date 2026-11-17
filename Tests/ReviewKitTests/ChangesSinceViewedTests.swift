@@ -5,8 +5,8 @@ import Testing
 @testable import ReviewKit
 
 /// "Changes since last viewed": which head is remembered, and the diff from
-/// it — exact after added commits and after a rebase, flagged when the old
-/// head cannot be replayed onto the new merge base.
+/// it — exact after added commits and after a rebase, and a file that cannot
+/// be replayed onto the new merge base shown whole.
 @Suite
 struct ChangesSinceViewedTests {
     @Test("Remembers the head seen before the latest, and keeps it when the same head is reopened")
@@ -43,7 +43,7 @@ struct ChangesSinceViewedTests {
         let newHead = try await shell.git("rev-parse", "HEAD")
 
         let since = try await changes(fixture, head: newHead, base: fixture.baseSHA, since: fixture.headSHA)
-        #expect(since.changesSince == LoadedReview.ChangesSince(commit: fixture.headSHA, isExact: true))
+        #expect(since.changesSince == LoadedReview.ChangesSince(commit: fixture.headSHA))
         #expect(since.files.map(\.path) == ["new.ts"])
         let file = try #require(since.files.first)
         #expect(try await since.text(of: file, on: .base) == "export const added = 2\nexport const more = 3\n")
@@ -65,11 +65,11 @@ struct ChangesSinceViewedTests {
         let newHead = try await shell.git("rev-parse", "HEAD")
 
         let since = try await changes(fixture, head: newHead, base: fixture.baseSHA, since: fixture.headSHA)
-        #expect(since.changesSince?.isExact == true)
+        #expect(since.changesSince?.wholeChangePaths == [])
         #expect(since.files.map(\.path) == ["new.ts"])
     }
 
-    @Test("Says the comparison is not exact when the old head conflicts with the new base")
+    @Test("Shows a file that conflicts with the new base whole, and still leaves out the base's changes")
     func conflictedReplay() async throws {
         let fixture = try await FixtureRepository.make()
         defer { fixture.remove() }
@@ -91,8 +91,11 @@ struct ChangesSinceViewedTests {
         let newHead = try await shell.git("rev-parse", "HEAD")
 
         let since = try await changes(fixture, head: newHead, base: newBase, since: fixture.headSHA)
-        #expect(since.changesSince?.isExact == false)
-        #expect(since.files.contains { $0.path == "main.go" })
+        #expect(since.changesSince?.wholeChangePaths == ["main.go"])
+        // unrelated.go came from main through the merge; it is not shown.
+        #expect(since.files.map(\.path) == ["main.go"])
+        let file = try #require(since.files.first)
+        #expect(try await since.text(of: file, on: .base) == lines.joined(separator: "\n") + "\n")
     }
 
     private func shell(_ fixture: FixtureRepository) -> Shell {

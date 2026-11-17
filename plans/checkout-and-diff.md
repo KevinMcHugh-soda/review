@@ -111,8 +111,13 @@ not whatever the base branch did in between:
   current merge base with `git merge-tree --write-tree <merge base> <old head>`
   (its own merge base is the old branch point) and the diff starts from that
   tree. git 2.39 has no `--merge-base`, but none is needed for this.
-- The replay conflicts: old head → head, flagged `isExact == false`, and the
-  bar says the base's changes may be mixed in.
+- The replay conflicts (the author merged the base in and resolved
+  conflicts): `merge-tree` still writes a tree, with markers in the
+  conflicted files. Those files are swapped for their merge-base version
+  (`GitClient.tree(_:replacing:from:)`, through a throwaway index), so they
+  show their whole change and every other file shows only what changed. The
+  base's changes never show; `ChangesSince.wholeChangePaths` names the
+  conflicted files and the bar says so.
 
 **Keeping the old head.** Once a push moves `refs/review/pull/<n>/head`, the
 old head is unreachable and `gc` may prune it. Before each fetch it is pinned

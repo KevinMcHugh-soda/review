@@ -44,10 +44,10 @@ public struct LoadedReview: Sendable {
     public struct ChangesSince: Hashable, Sendable {
         /// The head the reviewer last viewed.
         public let commit: String
-        /// False when that head could not be replayed onto the current merge
-        /// base without conflicts, so the files also carry whatever the base
-        /// branch changed in them in between.
-        public let isExact: Bool
+        /// Files where that head could not be replayed onto the current
+        /// merge base without conflicts. They show their whole change since
+        /// the merge base instead, so the base branch's changes never show.
+        public var wholeChangePaths: [String] = []
     }
 
     init(
@@ -105,17 +105,17 @@ public struct LoadedReview: Sendable {
     /// rebase, or the base branch merged in — that diff would also show
     /// everything the base branch did, so the old head is first replayed onto
     /// the current merge base with `git merge-tree` and the diff starts from
-    /// that tree. If the replay conflicts, the plain diff is the fallback and
-    /// `ChangesSince.isExact` says so.
+    /// that tree. Files that conflict in the replay start from the merge base
+    /// instead — their whole change, but still none of the base's.
     public func changes(since commit: String) async throws -> LoadedReview {
         let from: String
-        let isExact: Bool
+        let wholeChangePaths: [String]
         if try await git.mergeBase(mergeBase, commit, in: repository) == mergeBase {
-            (from, isExact) = (commit, true)
-        } else if case .clean(let tree) = try await git.mergeTree(base: mergeBase, head: commit, in: repository) {
-            (from, isExact) = (tree, true)
+            (from, wholeChangePaths) = (commit, [])
         } else {
-            (from, isExact) = (commit, false)
+            let replay = try await git.replay(commit, onto: mergeBase, in: repository)
+            from = try await git.tree(replay.tree, replacing: replay.conflictedPaths, from: mergeBase, in: repository)
+            wholeChangePaths = replay.conflictedPaths
         }
         let patch = try await git.diff(from: from, to: pullRequest.head.sha, in: repository)
         let parsed = try UnifiedDiffParser.parse(patch)
@@ -125,7 +125,7 @@ public struct LoadedReview: Sendable {
         return LoadedReview(
             pullRequest: pullRequest, mergeBase: mergeBase, baseTip: baseTip, files: files, generatedPaths: generatedPaths,
             merge: nil, repository: repository, git: git,
-            changesSince: ChangesSince(commit: commit, isExact: isExact), diffBase: from
+            changesSince: ChangesSince(commit: commit, wholeChangePaths: wholeChangePaths), diffBase: from
         )
         .ordered(by: fileOrder)
     }

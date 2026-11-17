@@ -44,7 +44,8 @@ public struct GitClient: Sendable {
         _ arguments: [String],
         in repository: URL? = nil,
         input: Data? = nil,
-        timeout: Duration = .seconds(600)
+        timeout: Duration = .seconds(600),
+        alsoAccepting acceptedStatuses: Set<Int32> = []
     ) async throws -> ProcessOutput {
         var full = credentialHelper
         full += ["-c", "core.quotePath=false"]
@@ -54,7 +55,7 @@ public struct GitClient: Sendable {
             git, full, environment: environment.merging(extraEnvironment) { _, extra in extra },
             input: input, timeout: timeout
         )
-        guard output.succeeded else {
+        guard output.succeeded || acceptedStatuses.contains(output.status) else {
             throw GitError(arguments: arguments, status: output.status, stderr: output.stderrText)
         }
         return output
@@ -100,6 +101,47 @@ public struct GitClient: Sendable {
             // Exit 1 is "conflicts", not failure.
             return .conflicted
         }
+    }
+
+    /// A merge tree written even when it conflicts.
+    public struct Replay: Hashable, Sendable {
+        /// The tree; conflicted paths hold conflict markers.
+        public let tree: String
+        /// Paths that conflicted, empty for a clean merge.
+        public let conflictedPaths: [String]
+    }
+
+    /// What merging `head` into `base` would produce, conflicts and all.
+    public func replay(_ head: String, onto base: String, in repository: URL) async throws -> Replay {
+        // Exit 1 is "conflicts", not failure; the tree is written either way.
+        let output = try await run(
+            ["merge-tree", "--write-tree", "--name-only", "--no-messages", "-z", base, head],
+            in: repository, alsoAccepting: [1]
+        )
+        // -z: tree NUL, then each conflicted path NUL.
+        let fields = output.stdout.split(separator: 0).map { String(decoding: $0, as: UTF8.self) }
+        let tree = fields.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return Replay(tree: tree, conflictedPaths: Array(Set(fields.dropFirst())).sorted())
+    }
+
+    /// `tree` with `paths` taken from `commit` instead (removed where
+    /// `commit` has no such path). Written through a throwaway index; the
+    /// clone is bare, so `update-index` gets an empty scratch work tree it
+    /// never touches.
+    public func tree(_ tree: String, replacing paths: [String], from commit: String, in repository: URL) async throws -> String {
+        guard !paths.isEmpty else { return tree }
+        let scratch = FileManager.default.temporaryDirectory.appendingPathComponent("review-tree-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        var scoped = self
+        scoped.extraEnvironment["GIT_INDEX_FILE"] = scratch.appendingPathComponent("index").path
+        scoped.extraEnvironment["GIT_WORK_TREE"] = scratch.path
+        try await scoped.run(["read-tree", tree], in: repository)
+        // Mode 0 removes a path; then the commit's own entries, where it has them.
+        let removals = paths.map { "0 \(String(repeating: "0", count: 40))\t\($0)\0" }.joined()
+        let entries = try await run(["ls-tree", "-r", "-z", commit, "--"] + paths, in: repository).stdout
+        try await scoped.run(["update-index", "-z", "--index-info"], in: repository, input: Data(removals.utf8) + entries)
+        return try await scoped.run(["write-tree"], in: repository).stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public func mergeBase(_ base: String, _ head: String, in repository: URL) async throws -> String {
