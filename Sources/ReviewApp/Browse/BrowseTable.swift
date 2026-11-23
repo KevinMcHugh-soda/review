@@ -1,4 +1,3 @@
-import AppKit
 import ReviewCore
 import SwiftUI
 
@@ -63,10 +62,7 @@ struct BrowseTable: View {
             Button(references.count == 1 ? "Open" : "Open \(references.count) Pull Requests") { open(references) }
             if references.count == 1, let reference = references.first {
                 Link("Open on GitHub", destination: reference.webURL)
-                Button("Copy Link") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(reference.webURL.absoluteString, forType: .string)
-                }
+                CopyLinkButton(url: reference.webURL)
                 if let author = model.browser.listings.first(where: { $0.reference == reference })?.author {
                     Divider()
                     Button("Show Only \(author)'s") {

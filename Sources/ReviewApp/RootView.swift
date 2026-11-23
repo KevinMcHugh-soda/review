@@ -147,6 +147,7 @@ struct RootView: View {
     @ViewBuilder
     private func rowMenu(_ reference: PullRequestReference, in group: [PullRequestReference]) -> some View {
         Link("Open on GitHub", destination: reference.webURL)
+        CopyLinkButton(url: reference.webURL)
         Divider()
         // The keyboard and menu way to do what a drag does.
         Button("Move to Top") { model.moveOpenPullRequestToTop(reference) }

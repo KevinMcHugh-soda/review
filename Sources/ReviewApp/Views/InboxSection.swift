@@ -16,6 +16,7 @@ struct InboxSection<Empty: View>: View {
                     .tag(SidebarItem.pullRequest(item.reference))
                     .contextMenu {
                         Link("Open on GitHub", destination: item.reference.webURL)
+                        CopyLinkButton(url: item.reference.webURL)
                     }
             }
             if items.isEmpty, !model.isLoadingInbox {
