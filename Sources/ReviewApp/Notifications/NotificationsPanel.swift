@@ -63,6 +63,7 @@ struct NotificationsPanel: View {
             model.setRead(!record.isRead, id: record.id)
         }
         Link("Open on GitHub", destination: record.reference.webURL)
+        CopyLinkButton(url: record.reference.webURL)
         Divider()
         Button("Delete", role: .destructive) { model.removeNotification(id: record.id) }
     }

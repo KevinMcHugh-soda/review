@@ -6,6 +6,7 @@ import SwiftUI
 /// Diff/File switch and Back/Forward in the toolbar.
 struct CodeDetail: View {
     @Bindable var session: ReviewSession
+    @Environment(\.openURL) private var openURL
     @State private var resultsHeight = Theme.resultsIdealHeight
     @State private var dragStartHeight: CGFloat?
 
@@ -63,6 +64,10 @@ struct CodeDetail: View {
                     Label("All Files", systemImage: "rectangle.stack")
                 }
                 .help("Every file in one scroll, or one at a time (⌘4)")
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button("Open on GitHub", systemImage: "safari") { openURL(session.reference.webURL) }
+                .help("Open this pull request on GitHub")
             }
             ToolbarItem(placement: .primaryAction) {
                 Toggle(isOn: $session.isInspectorShown) {
